@@ -25,6 +25,31 @@ io.on('connection', (socket) => {
         // Tell EVERYONE the new player list (Broadcast)
         io.emit('updatePlayerList', players);
     });
+    // Listen for the "Start Game" signal
+    socket.on('startGame', () => {
+        if (players.length < 2) return; // Need at least 2 to play!
+
+        // 1. Shuffle players (Standard Fisher-Yates shuffle logic)
+        let shuffled = [...players].sort(() => 0.5 - Math.random());
+
+        // 2. Assign Roles
+        // For simplicity: First person in shuffled list is the Spy
+        const spyId = shuffled[0].id;
+
+        players.forEach(p => {
+            if (p.id === spyId) {
+                p.role = "IU SPY 🚩";
+                // Send a PRIVATE message to just this player
+                io.to(p.id).emit('assignRole', "You are the IU SPY. Sabotage the Boilers!");
+            } else {
+                p.role = "BOILERMAKER 🚂";
+                io.to(p.id).emit('assignRole', "You are a BOILERMAKER. Protect the traditions!");
+            }
+        });
+
+        // 3. Notify everyone that the game has started
+        io.emit('gameStarted');
+    });
 
     // Handle disconnection (like a close() call)
     socket.on('disconnect', () => {
