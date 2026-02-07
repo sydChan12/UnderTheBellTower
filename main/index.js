@@ -28,10 +28,19 @@ function createDeck() {
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 io.on('connection', (socket) => {
+    // LOBBY & CHAT
     socket.on('joinGame', (name) => {
         if (gameActive) return socket.emit('errorMsg', "Game in progress.");
         players.push({ id: socket.id, name, role: 'Unassigned', party: 'Liberal' });
         io.emit('updatePlayerList', getPlayerListWithStatus());
+        io.emit('chatMessage', { user: "SYSTEM", msg: `${name} has entered the Bell Tower.` });
+    });
+
+    socket.on('sendChat', (msg) => {
+        const player = players.find(p => p.id === socket.id);
+        if (player) {
+            io.emit('chatMessage', { user: player.name, msg: msg });
+        }
     });
 
     function getPlayerListWithStatus() {
@@ -89,8 +98,10 @@ io.on('connection', (socket) => {
                     return io.emit('gameOver', "HOOSIERS WIN: The Bison was elected VP!");
                 }
                 io.to(currentPres.id).emit('presDrawPhase');
+                io.emit('chatMessage', { user: "SYSTEM", msg: `Government Elected! Majority voted Boiler Up!` });
             } else {
                 electionTracker++;
+                io.emit('chatMessage', { user: "SYSTEM", msg: `Election Failed! Majority voted Hammer Down.` });
                 if (electionTracker >= 3) {
                     const chaos = deck.shift();
                     chaos === "Tradition" ? enactedPolicies.tradition++ : enactedPolicies.construction++;
@@ -109,7 +120,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('presDiscard', (remainingTwo) => {
-        // Correctly passing the array of 2 to the VP
         io.to(currentVP.id).emit('vpEnactPhase', remainingTwo);
     });
 
@@ -125,7 +135,4 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
-});
+server.listen(3000, () => console.log('Purdue Server Online: http://localhost:3000'));
