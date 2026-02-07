@@ -8,6 +8,11 @@ const io = new Server(server);
 
 let players = []; // Like an ArrayList<Player>
 
+// This tells the server: "When someone visits the home page (/), send index.html"
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/index.html');
+});
+
 // This runs whenever a "client" (phone/tab) connects
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
