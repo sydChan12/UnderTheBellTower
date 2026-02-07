@@ -8,46 +8,45 @@ const io = new Server(server);
 
 let players = [];
 let deck = [];
-let scores = { tradition: 0, construction: 0 };
+let enactedPolicies = { tradition: [], construction: [] };
+let currentChancellor = null;
+let currentPresident = null;
 
 function createDeck() {
     deck = [...Array(6).fill("Tradition"), ...Array(11).fill("Construction")];
     deck.sort(() => 0.5 - Math.random());
 }
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 io.on('connection', (socket) => {
     socket.on('joinGame', (name) => {
-        const newPlayer = { id: socket.id, name: name, role: 'Unassigned' };
-        players.push(newPlayer);
+        players.push({ id: socket.id, name: name, role: 'Unassigned' });
         io.emit('updatePlayerList', players);
     });
 
     socket.on('startGame', () => {
         if (players.length < 2) return;
         createDeck();
-        scores = { tradition: 0, construction: 0 };
-        
+        enactedPolicies = { tradition: [], construction: [] };
         let shuffled = [...players].sort(() => 0.5 - Math.random());
-        const spyId = shuffled[0].id;
-
         players.forEach(p => {
-            p.role = (p.id === spyId) ? "IU SPY 🚩" : "BOILERMAKER 🚂";
+            p.role = (p.id === shuffled[0].id) ? "IU SPY 🚩" : "BOILERMAKER 🚂";
             io.to(p.id).emit('assignRole', p.role);
         });
         io.emit('gameStarted');
     });
 
-    socket.on('startVote', (nominatedName) => {
-        // Validation: Check if the name exists in our players array
-        const exists = players.some(p => p.name.toLowerCase() === nominatedName.toLowerCase());
-        if (exists) {
-            io.emit('showVote', nominatedName);
+    // 1. President Nominates Chancellor
+    socket.on('nominateChancellor', (chancellorName) => {
+        const nominee = players.find(p => p.name.toLowerCase() === chancellorName.toLowerCase());
+        const president = players.find(p => p.id === socket.id);
+        if (nominee) {
+            currentPresident = president;
+            currentChancellor = nominee;
+            io.emit('showVote', { president: president.name, chancellor: nominee.name });
         } else {
-            socket.emit('errorMsg', "Student not found on campus!");
+            socket.emit('errorMsg', "Student not found!");
         }
     });
 
@@ -55,21 +54,26 @@ io.on('connection', (socket) => {
         io.emit('voteResult', voteData);
     });
 
+    // 2. President Draws 3, Discards 1
     socket.on('drawPolicies', () => {
         if (deck.length < 3) createDeck();
         const hand = deck.splice(0, 3);
-        socket.emit('policyHand', hand);
+        socket.emit('presidentHand', hand);
     });
 
+    // 3. President passes 2 to Chancellor
+    socket.on('presidentDiscard', (remainingTwo) => {
+        io.to(currentChancellor.id).emit('chancellorHand', remainingTwo);
+    });
+
+    // 4. Chancellor Enacts 1
     socket.on('enactPolicy', (policy) => {
-        if (policy === "Tradition") scores.tradition++;
-        else scores.construction++;
+        const policyObj = { type: policy, pres: currentPresident.name, chan: currentChancellor.name };
+        if (policy === "Tradition") enactedPolicies.tradition.push(policyObj);
+        else enactedPolicies.construction.push(policyObj);
         
-        io.emit('policyUpdated', { 
-            traditionScore: scores.tradition, 
-            constructionScore: scores.construction, 
-            lastPolicy: policy 
-        });
+        io.emit('policyUpdated', enactedPolicies);
+        io.emit('statusMsg', `Policy Enacted by ${currentPresident.name} and ${currentChancellor.name}`);
     });
 
     socket.on('disconnect', () => {
@@ -78,6 +82,4 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(3000, () => {
-    console.log('Server running at http://localhost:3000');
-});
+server.listen(3000, () => { console.log('Server running at http://localhost:3000'); });
