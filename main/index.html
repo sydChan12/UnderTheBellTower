@@ -1,185 +1,125 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Under the Bell Tower</title>
+    <meta charset="UTF-8">
+    <title>Under the Bell Tower | Purdue Social Deduction</title>
     <style>
-        :root { --purdue-gold: #CEB888; --iu-crimson: #990000; }
-        body { font-family: 'Segoe UI', sans-serif; background: #1a1a1a; color: white; display: flex; margin: 0; height: 100vh; }
-        #sidebar { width: 220px; background: #000; border-right: 2px solid var(--purdue-gold); padding: 20px; }
-        #main { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .track { display: flex; gap: 10px; background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; }
-        .slot { width: 80px; height: 110px; border: 2px dashed #555; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
-        .filled-tradition { background: var(--purdue-gold); color: black; border: none; }
-        .filled-construction { background: var(--iu-crimson); color: white; border: none; }
-        button { padding: 10px; margin: 5px; cursor: pointer; border-radius: 5px; border: none; font-weight: bold; }
-        .gold-btn { background: var(--purdue-gold); color: black; }
-        .policy-card { background: white; color: black; padding: 20px; margin: 10px; display: inline-block; cursor: pointer; border-radius: 5px; width: 80px; font-weight: bold; }
-        #voteUI { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
-        #status { background: var(--purdue-gold); color: black; padding: 10px; margin-bottom: 10px; font-weight: bold; display: none; border-radius: 5px; width: 80%; }
+        :root { --p-gold: #CEB888; --p-black: #000000; --iu-red: #990000; --bg: #121212; }
+        body { background: var(--bg); color: white; font-family: 'Garamond', serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar inspired by secret-hitler.online */
+        #player-sidebar { width: 260px; background: #000; border-right: 2px solid var(--p-gold); padding: 20px; display: flex; flex-direction: column; }
+        .player-slot { background: #1a1a1a; margin: 5px 0; padding: 12px; border-radius: 4px; border-left: 4px solid #444; transition: 0.3s; }
+        .player-slot.active { border-left-color: var(--p-gold); background: #222; }
+
+        #game-board { flex-grow: 1; padding: 40px; display: flex; flex-direction: column; align-items: center; justify-content: space-around; }
+        
+        /* Policy Tracks */
+        .track { display: flex; gap: 12px; background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        .slot { width: 90px; height: 130px; border: 2px dashed #444; border-radius: 6px; position: relative; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.7rem; font-weight: bold; transition: all 0.5s ease; }
+        .slot.tradition { background: var(--p-gold); color: black; border-style: solid; box-shadow: 0 0 15px var(--p-gold); }
+        .slot.construction { background: var(--iu-red); color: white; border-style: solid; box-shadow: 0 0 15px var(--iu-red); }
+
+        /* Election Tracker */
+        #election-tracker { display: flex; gap: 10px; margin: 20px 0; }
+        .dot { width: 25px; height: 25px; border-radius: 50%; border: 2px solid #555; }
+        .dot.active { background: var(--p-gold); box-shadow: 0 0 10px var(--p-gold); }
+
+        /* Action Buttons */
+        .btn-gold { background: var(--p-gold); color: black; padding: 12px 24px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .btn-gold:hover { background: #e0ca9e; }
+        
+        #vote-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h2 style="color:var(--purdue-gold)">Students</h2>
-    <div id="playerList"></div>
-</div>
-
-<div id="main">
-    <div id="status"></div>
-
-    <div id="setup">
-        <h1>🔔 Under the Bell Tower</h1>
-        <input id="username" placeholder="Name">
-        <button class="gold-btn" onclick="join()">Enter Lobby</button>
-    </div>
-
-    <div id="gameUI" style="display:none">
-        <div class="track" id="traditionTrack"></div>
-        <div class="track" id="constructionTrack"></div>
-
-        <p id="roleSecret" style="color:var(--purdue-gold); font-size: 1.2rem;">Role Hidden</p>
-        <button class="gold-btn" onmousedown="reveal()" onmouseup="hide()" ontouchstart="reveal()" ontouchend="hide()">HOLD TO REVEAL</button>
-
-        <div id="electionBox" style="margin-top: 30px; border-top: 1px solid #444; padding-top: 20px;">
-            <input id="nominee" placeholder="Nominate VP">
-            <button class="gold-btn" onclick="nominate()">Nominate</button>
-            <br>
-            <button id="drawBtn" onclick="drawCards()" style="background:white; color:black; display:none; margin-top:15px; border: 3px solid var(--purdue-gold);">PRESIDENT: DRAW 3 POLICIES</button>
-        </div>
-
-        <div id="legisArea" style="display:none; background:#333; padding: 20px; margin-top: 20px; border-radius: 10px;">
-            <h4 id="legisTitle">Legislative Session</h4>
-            <div id="policyButtons"></div>
+    <div id="player-sidebar">
+        <h2 style="color: var(--p-gold); letter-spacing: 2px;">CAMPUS DIRECTORY</h2>
+        <div id="player-list"></div>
+        <div style="margin-top: auto; padding: 10px; border-top: 1px solid #333;">
+            <p id="my-role-display">Role: [Hidden]</p>
+            <button class="btn-gold" style="width: 100%" onmousedown="revealRole()" onmouseup="hideRole()">Hold to Reveal</button>
         </div>
     </div>
 
-    <div id="lobbyControls" style="display:none; margin-top: 20px;">
-        <button class="gold-btn" onclick="startGame()">START GAME</button>
+    <div id="game-board">
+        <div id="status-bar" style="color: var(--p-gold); font-size: 1.2rem; height: 30px;">Waiting for players...</div>
+        
+        <div>
+            <h4>TRADITION TRACK (Boilermakers)</h4>
+            <div class="track" id="tradition-track"></div>
+        </div>
+
+        <div>
+            <h4>CONSTRUCTION TRACK (Hoosiers)</h4>
+            <div class="track" id="construction-track"></div>
+        </div>
+
+        <div id="election-tracker-ui">
+            <p>ELECTION TRACKER</p>
+            <div id="election-tracker">
+                <div class="dot" id="dot-0"></div>
+                <div class="dot" id="dot-1"></div>
+                <div class="dot" id="dot-2"></div>
+                <div class="dot" id="dot-3"></div> </div>
+        </div>
+
+        <div id="controls">
+            <input id="vp-nominee" placeholder="Target Student Name" style="padding: 10px; background: #222; border: 1px solid #444; color: white;">
+            <button class="btn-gold" onclick="nominate()">Nominate VP</button>
+            <button id="draw-btn" class="btn-gold" style="display:none; margin-left: 10px;" onclick="drawCards()">Draw 3 Policies</button>
+        </div>
     </div>
-</div>
 
-<div id="voteUI">
-    <h2 id="voteTitle"></h2>
-    <button class="gold-btn" onclick="castVote('Boiler Up!')" style="font-size: 1.5rem;">🚂 Boiler Up!</button>
-    <button style="background:var(--iu-crimson); color:white; font-size: 1.5rem;" onclick="castVote('Hammer Down!')">🔨 Hammer Down!</button>
-</div>
+    <div id="vote-overlay">
+        <h1 id="vote-header">ELECT NEW GOVERNMENT?</h1>
+        <div style="display: flex; gap: 40px; margin-top: 30px;">
+            <button class="btn-gold" onclick="castVote('Boiler Up!')" style="font-size: 2rem; padding: 40px;">🚂 BOILER UP!</button>
+            <button onclick="castVote('Hammer Down!')" style="background: var(--iu-red); color: white; font-size: 2rem; padding: 40px; border: none; cursor: pointer; border-radius: 4px;">🔨 HAMMER DOWN!</button>
+        </div>
+    </div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script>
-    const socket = io();
-    let myName = "", myRole = "", myId = "";
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myRole = "Unknown";
 
-    socket.on('connect', () => { myId = socket.id; });
+        function updateBoard(data) {
+            // Render Tradition Track
+            const tt = document.getElementById('tradition-track');
+            tt.innerHTML = '';
+            for(let i=0; i<5; i++) {
+                const filled = data.tradition[i];
+                tt.innerHTML += `<div class="slot ${filled ? 'tradition' : ''}">${filled ? 'TRADITION' : i+1}</div>`;
+            }
 
-    function showStatus(msg) {
-        const s = document.getElementById('status');
-        s.innerText = msg; s.style.display = 'block';
-        setTimeout(() => { s.style.display = 'none'; }, 5000);
-    }
+            // Render Construction Track
+            const ct = document.getElementById('construction-track');
+            ct.innerHTML = '';
+            for(let i=0; i<6; i++) {
+                const filled = data.construction[i];
+                ct.innerHTML += `<div class="slot ${filled ? 'construction' : ''}">${filled ? 'CONSTRUCTION' : i+1}</div>`;
+            }
 
-    function join() {
-        myName = document.getElementById('username').value;
-        if(myName) {
-            socket.emit('joinGame', myName);
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('lobbyControls').style.display = 'block';
+            // Update Election Tracker
+            for(let i=0; i<=3; i++) {
+                document.getElementById(`dot-${i}`).className = `dot ${i === data.tracker ? 'active' : ''}`;
+            }
         }
-    }
 
-    function startGame() { socket.emit('startGame'); }
-
-    socket.on('updatePlayerList', (p) => {
-        document.getElementById('playerList').innerHTML = p.map(x => `<div>🚂 ${x.name}</div>`).join('');
-    });
-
-    socket.on('assignRole', (role) => {
-        myRole = role;
-        document.getElementById('lobbyControls').style.display = 'none';
-        document.getElementById('gameUI').style.display = 'block';
-        updateBoard({tradition:[], construction:[]});
-    });
-
-    function reveal() { document.getElementById('roleSecret').innerText = myRole; }
-    function hide() { document.getElementById('roleSecret').innerText = "Role Hidden"; }
-
-    function nominate() {
-        const val = document.getElementById('nominee').value;
-        if(val) socket.emit('nominateVP', val);
-    }
-
-    socket.on('showVote', (data) => {
-        document.getElementById('voteTitle').innerText = `Elect ${data.president} & ${data.vp}?`;
-        document.getElementById('voteUI').style.display = 'flex';
-    });
-
-    function castVote(c) {
-        socket.emit('submitVote', { name: myName, choice: c });
-        document.getElementById('voteUI').style.display = 'none';
-    }
-
-    socket.on('electionPassed', (data) => {
-        showStatus(data.msg);
-        if(myId === data.presId) {
-            document.getElementById('drawBtn').style.display = 'inline-block';
-        }
-    });
-
-    socket.on('electionFailed', (msg) => { showStatus(msg); });
-
-    function drawCards() { 
-        socket.emit('drawPolicies'); 
-        document.getElementById('drawBtn').style.display = 'none';
-    }
-
-    socket.on('presidentHand', (hand) => {
-        document.getElementById('legisArea').style.display = 'block';
-        document.getElementById('legisTitle').innerText = "President: Discard 1 Card";
-        const area = document.getElementById('policyButtons');
-        area.innerHTML = '';
-        hand.forEach((p, i) => {
-            const card = document.createElement('div');
-            card.className = 'policy-card';
-            card.innerText = p;
-            card.onclick = () => {
-                let rem = [...hand]; rem.splice(i, 1);
-                socket.emit('presidentDiscard', rem);
-                document.getElementById('legisArea').style.display = 'none';
-            };
-            area.appendChild(card);
+        socket.on('showVote', (names) => {
+            document.getElementById('vote-header').innerText = `ELECT ${names.pres} & ${names.vp}?`;
+            document.getElementById('vote-overlay').style.display = 'flex';
         });
-    });
 
-    socket.on('vpHand', (hand) => {
-        document.getElementById('legisArea').style.display = 'block';
-        document.getElementById('legisTitle').innerText = "VP: Enact 1 Policy";
-        document.getElementById('policyButtons').innerHTML = hand.map(p => 
-            `<div class="policy-card" onclick="enact('${p}')">${p}</div>`).join('');
-    });
-
-    function enact(p) {
-        socket.emit('enactPolicy', p);
-        document.getElementById('legisArea').style.display = 'none';
-    }
-
-    function updateBoard(data) {
-        const tTrack = document.getElementById('traditionTrack');
-        const cTrack = document.getElementById('constructionTrack');
-        tTrack.innerHTML = ''; cTrack.innerHTML = '';
-        for(let i=0; i<5; i++){
-            const p = data.tradition[i];
-            tTrack.innerHTML += `<div class="slot ${p?'filled-tradition':''}">
-                ${p ? `TRADITION<br><small>${p.pres}/${p.vp}</small>` : 'Empty'}</div>`;
+        function castVote(choice) {
+            socket.emit('submitVote', { choice });
+            document.getElementById('vote-overlay').style.display = 'none';
         }
-        for(let i=0; i<6; i++){
-            const p = data.construction[i];
-            cTrack.innerHTML += `<div class="slot ${p?'filled-construction':''}">
-                ${p ? `CONSTRUCT<br><small>${p.pres}/${p.vp}</small>` : 'Empty'}</div>`;
-        }
-    }
 
-    socket.on('policyUpdated', (data) => updateBoard(data));
-    socket.on('statusMsg', (m) => showStatus(m));
-</script>
+        function revealRole() { document.getElementById('my-role-display').innerText = `Role: ${myRole}`; }
+        function hideRole() { document.getElementById('my-role-display').innerText = `Role: [Hidden]`; }
+    </script>
 </body>
 </html>
