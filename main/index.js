@@ -6,227 +6,225 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Centralized Game State
-let players = [];
-let deck = [];
-let discardPile = [];
-let enactedPolicies = { tradition: 0, construction: 0 };
-let electionTracker = 0;
-let lastPresident = null, lastVP = null;
-let currentPres = null, currentVP = null;
-let currentVotes = {};
-let gameActive = false;
-let presidentialIndex = 0;
-
-function createDeck() {
-    deck = [...Array(6).fill("Tradition"), ...Array(11).fill("Construction")];
-    deck.sort(() => 0.5 - Math.random());
-    discardPile = [];
-}
-
-function resetServerState() {
-    gameActive = false;
-    enactedPolicies = { tradition: 0, construction: 0 };
-    electionTracker = 0;
-    lastPresident = null;
-    lastVP = null;
-    currentPres = null;
-    currentVP = null;
-    currentVotes = {};
-    presidentialIndex = 0;
-}
+const rooms = {};
 
 app.get('/', (req, res) => { res.sendFile(__dirname + '/index.html'); });
 
 io.on('connection', (socket) => {
-    // 1. FIXED JOIN LOGIC
-    socket.on('joinGame', (name) => {
-        const cleanName = name.trim();
-        if (!cleanName) return socket.emit('errorMsg', "Please enter a name.");
-        
-        if (gameActive) {
-            return socket.emit('errorMsg', "Game is already in progress. Please wait for it to end.");
-        }
-        
-        const nameExists = players.some(p => p.name.toLowerCase() === cleanName.toLowerCase());
-        if (nameExists) {
-            return socket.emit('errorMsg', "That name is already taken. Pick another!");
-        }
-
-        players.push({ id: socket.id, name: cleanName, role: 'Unassigned', party: 'Liberal', alive: true });
-        
-        // Ensure the joining player sees the lobby
-        socket.emit('joinedSuccessfully');
-        io.emit('updatePlayerList', getPlayerListWithStatus());
-        io.emit('chatMessage', { user: "SYSTEM", msg: `${cleanName} has joined.` });
+    
+    socket.on('createRoom', (userName) => {
+        const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+        rooms[roomCode] = {
+            players: [],
+            deck: [],
+            discardPile: [],
+            enactedPolicies: { tradition: 0, construction: 0 },
+            electionTracker: 0,
+            lastPresident: null,
+            lastVP: null,
+            currentPres: null,
+            currentVP: null,
+            currentVotes: {},
+            gameActive: false,
+            presidentialIndex: 0
+        };
+        joinPlayerToRoom(socket, roomCode, userName, true);
     });
 
-    function getPlayerListWithStatus() {
-        return players.map(p => ({
-            name: p.name,
-            alive: p.alive,
-            isPres: currentPres && p.id === currentPres.id,
-            isLimit: (p.name === lastPresident || p.name === lastVP)
-        }));
+    socket.on('joinRoom', ({ roomCode, userName }) => {
+        const code = roomCode.toUpperCase();
+        const room = rooms[code];
+        if (!room) return socket.emit('errorMsg', "Room not found.");
+        if (room.gameActive) return socket.emit('errorMsg', "Game already in progress.");
+        if (room.players.some(p => p.name.toLowerCase() === userName.toLowerCase())) {
+            return socket.emit('errorMsg', "Name already taken in this room.");
+        }
+        joinPlayerToRoom(socket, code, userName, false);
+    });
+
+    function joinPlayerToRoom(socket, roomCode, name, isHost) {
+        const room = rooms[roomCode];
+        const newPlayer = { id: socket.id, name, isHost, alive: true, role: 'Unassigned', party: 'Liberal' };
+        room.players.push(newPlayer);
+        socket.join(roomCode);
+        socket.roomCode = roomCode;
+
+        socket.emit('joinedRoom', { roomCode, isHost, name });
+        io.to(roomCode).emit('updatePlayerList', getPlayerListWithStatus(room));
+        io.to(roomCode).emit('chatMessage', { user: "SYSTEM", msg: `${name} joined room ${roomCode}` });
     }
 
-    // 2. START GAME LOGIC
     socket.on('startGame', () => {
-        if (players.length < 5) return socket.emit('errorMsg', "Need at least 5 players to start.");
-        if (gameActive) return;
-
-        gameActive = true;
-        createDeck();
+        const room = rooms[socket.roomCode];
+        if (!room || room.players.length < 5) return socket.emit('errorMsg', "Need 5+ players.");
         
-        let shuffled = [...players].sort(() => 0.5 - Math.random());
+        room.gameActive = true;
+        room.deck = [...Array(6).fill("Tradition"), ...Array(11).fill("Construction")].sort(() => 0.5 - Math.random());
+        
+        let shuffled = [...room.players].sort(() => 0.5 - Math.random());
         let bison = shuffled[0];
         bison.role = "THE BISON 🦬"; bison.party = "Fascist";
 
-        const count = players.length;
+        const count = room.players.length;
         if (count <= 6) {
             let spy = shuffled[1];
             spy.role = "HOOSIER SPY 🚩"; spy.party = "Fascist";
-            io.to(bison.id).emit('assignRole', { role: bison.role, party: bison.party, info: `Spy: ${spy.name}` });
-            io.to(spy.id).emit('assignRole', { role: spy.role, party: spy.party, info: `Bison: ${bison.name}` });
+            io.to(bison.id).emit('assignRole', { role: bison.role, info: `Spy: ${spy.name}` });
+            io.to(spy.id).emit('assignRole', { role: spy.role, info: `Bison: ${bison.name}` });
         } else {
             let spyCount = count <= 8 ? 2 : 3;
             let spies = shuffled.slice(1, 1 + spyCount);
-            spies.forEach(s => { s.role = "HOOSIER SPY 🚩"; s.party = "Fascist"; });
-            spies.forEach(s => {
-                let otherNames = spies.filter(o => o.id !== s.id).map(o => o.name);
-                io.to(s.id).emit('assignRole', { role: s.role, party: s.party, info: `Bison: ${bison.name}. Spies: ${otherNames.join(', ')}` });
+            spies.forEach(s => { 
+                s.role = "HOOSIER SPY 🚩"; s.party = "Fascist"; 
+                let others = spies.filter(o => o.id !== s.id).map(o => o.name);
+                io.to(s.id).emit('assignRole', { role: s.role, info: `Bison: ${bison.name}. Spies: ${others.join(', ')}` });
             });
-            io.to(bison.id).emit('assignRole', { role: bison.role, party: bison.party, info: "You do not know the spies." });
+            io.to(bison.id).emit('assignRole', { role: bison.role, info: "You are the Bison. You don't know the spies." });
         }
 
-        players.filter(p => p.role === 'Unassigned').forEach(p => {
-            p.role = "BOILERMAKER 🚂"; p.party = "Liberal";
-            io.to(p.id).emit('assignRole', { role: p.role, party: p.party, info: "Stop the Bison!" });
+        room.players.forEach(p => {
+            if(p.role === 'Unassigned') {
+                p.role = "BOILERMAKER 🚂"; p.party = "Liberal";
+                io.to(p.id).emit('assignRole', { role: p.role, info: "Protect Purdue!" });
+            }
         });
 
-        io.emit('gameStarted');
-        startNewRound();
+        io.to(socket.roomCode).emit('gameStarted');
+        startNewRound(room);
     });
 
-    function startNewRound() {
-        if (!gameActive) return;
+    function startNewRound(room) {
+        if (!room.gameActive) return;
         let attempts = 0;
         do {
-            currentPres = players[presidentialIndex];
-            presidentialIndex = (presidentialIndex + 1) % players.length;
+            room.currentPres = room.players[room.presidentialIndex];
+            room.presidentialIndex = (room.presidentialIndex + 1) % room.players.length;
             attempts++;
-        } while (!currentPres.alive && attempts < players.length);
+        } while (!room.currentPres.alive && attempts < room.players.length);
 
-        currentVP = null;
-        currentVotes = {};
-        io.emit('updatePlayerList', getPlayerListWithStatus());
-        io.emit('newRound', { presidentName: currentPres.name, presidentId: currentPres.id });
+        room.currentVP = null;
+        room.currentVotes = {};
+        io.to(socket.roomCode).emit('updatePlayerList', getPlayerListWithStatus(room));
+        io.to(socket.roomCode).emit('newRound', { presidentName: room.currentPres.name, presidentId: room.currentPres.id });
     }
 
     socket.on('nominateVP', (vpName) => {
-        const nominee = players.find(p => p.name === vpName && p.alive);
-        if (!nominee) return;
-        currentVP = nominee;
-        io.emit('startVoting', { pres: currentPres.name, vp: nominee.name });
+        const room = rooms[socket.roomCode];
+        const nominee = room.players.find(p => p.name === vpName);
+        room.currentVP = nominee;
+        io.to(socket.roomCode).emit('startVoting', { pres: room.currentPres.name, vp: nominee.name });
     });
 
     socket.on('submitVote', (vote) => {
-        currentVotes[socket.id] = vote;
-        const living = players.filter(p => p.alive);
-        if (Object.keys(currentVotes).length === living.length) {
-            const yes = Object.values(currentVotes).filter(v => v === 'Boiler Up!').length;
+        const room = rooms[socket.roomCode];
+        room.currentVotes[socket.id] = vote;
+        const living = room.players.filter(p => p.alive);
+        if (Object.keys(room.currentVotes).length === living.length) {
+            const yes = Object.values(room.currentVotes).filter(v => v === 'Boiler Up!').length;
             if (yes > (living.length / 2)) {
-                electionTracker = 0;
-                if (enactedPolicies.construction >= 3 && currentVP.role === "THE BISON 🦬") {
-                    return endGame("HOOSIERS WIN: The Bison was elected VP!");
+                room.electionTracker = 0;
+                if (room.enactedPolicies.construction >= 3 && room.currentVP.role === "THE BISON 🦬") {
+                    return endGame(socket.roomCode, "HOOSIERS WIN: Bison elected VP!");
                 }
-                io.to(currentPres.id).emit('presDrawPhase');
+                io.to(room.currentPres.id).emit('presDrawPhase');
             } else {
-                electionTracker++;
-                if (electionTracker >= 3) {
-                    applyPolicy(deck.shift());
-                    electionTracker = 0;
-                } else {
-                    startNewRound();
-                }
+                room.electionTracker++;
+                if (room.electionTracker >= 3) {
+                    applyPolicy(socket.roomCode, room.deck.shift());
+                    room.electionTracker = 0;
+                } else startNewRound(room);
             }
         }
     });
 
     socket.on('drawThree', () => {
-        if (deck.length < 3) { deck = [...deck, ...discardPile].sort(() => 0.5 - Math.random()); discardPile = []; }
-        socket.emit('presDiscardPhase', deck.splice(0, 3));
+        const room = rooms[socket.roomCode];
+        if (room.deck.length < 3) {
+            room.deck = [...room.deck, ...room.discardPile].sort(() => 0.5 - Math.random());
+            room.discardPile = [];
+        }
+        socket.emit('presDiscardPhase', room.deck.splice(0, 3));
     });
 
     socket.on('presDiscard', (rem) => {
-        io.to(currentVP.id).emit('vpEnactPhase', { cards: rem, canVeto: enactedPolicies.construction >= 5 });
+        const room = rooms[socket.roomCode];
+        io.to(room.currentVP.id).emit('vpEnactPhase', { cards: rem, canVeto: room.enactedPolicies.construction >= 5 });
     });
 
-    socket.on('vpEnact', (chosen) => { applyPolicy(chosen); });
+    socket.on('vpEnact', (chosen) => applyPolicy(socket.roomCode, chosen));
 
-    function applyPolicy(type) {
-        if (!type) { createDeck(); type = deck.shift(); }
-        type === "Tradition" ? enactedPolicies.tradition++ : enactedPolicies.construction++;
-        lastPresident = currentPres.name; lastVP = currentVP.name;
+    function applyPolicy(roomCode, type) {
+        const room = rooms[roomCode];
+        type === "Tradition" ? room.enactedPolicies.tradition++ : room.enactedPolicies.construction++;
+        room.lastPresident = room.currentPres.name; room.lastVP = room.currentVP.name;
         
-        io.emit('policyUpdated', { enactedPolicies, electionTracker, playerCount: players.length });
+        io.to(roomCode).emit('policyUpdated', { enactedPolicies: room.enactedPolicies, electionTracker: room.electionTracker, playerCount: room.players.length });
         
-        if (enactedPolicies.tradition >= 5) return endGame("BOILERMAKERS WIN: Tradition preserved!");
-        if (enactedPolicies.construction >= 6) return endGame("HOOSIERS WIN: Construction completed!");
+        if (room.enactedPolicies.tradition >= 5) return endGame(roomCode, "BOILERMAKERS WIN!");
+        if (room.enactedPolicies.construction >= 6) return endGame(roomCode, "HOOSIERS WIN!");
         
-        if (type === "Construction") handlePower(enactedPolicies.construction);
-        else startNewRound();
+        if (type === "Construction") handlePower(roomCode, room.enactedPolicies.construction);
+        else startNewRound(room);
     }
 
-    function handlePower(count) {
-        const total = players.length;
-        if ((count === 1 && total >= 9) || (count === 2 && total >= 7)) io.to(currentPres.id).emit('triggerInvestigate');
-        else if (count === 3) io.to(currentPres.id).emit('triggerPeek', deck.slice(0, 3));
-        else if (count === 4 || count === 5) io.to(currentPres.id).emit('triggerExpel');
-        else startNewRound();
+    function handlePower(roomCode, count) {
+        const room = rooms[roomCode];
+        const total = room.players.length;
+        if ((count === 1 && total >= 9) || (count === 2 && total >= 7)) io.to(room.currentPres.id).emit('triggerInvestigate');
+        else if (count === 3) io.to(room.currentPres.id).emit('triggerPeek', room.deck.slice(0, 3));
+        else if (count === 4 || count === 5) io.to(room.currentPres.id).emit('triggerExpel');
+        else startNewRound(room);
     }
 
     socket.on('powerInvestigate', (name) => {
-        const target = players.find(p => p.name === name);
+        const room = rooms[socket.roomCode];
+        const target = room.players.find(p => p.name === name);
         socket.emit('investigateResult', { name, party: target.party });
-        startNewRound();
+        startNewRound(room);
     });
 
     socket.on('powerExpel', (name) => {
-        const target = players.find(p => p.name === name);
-        if (target) {
-            target.alive = false;
-            io.emit('chatMessage', { user: "SYSTEM", msg: `${name} was EXPELLED!` });
-            if (target.role === "THE BISON 🦬") return endGame("BOILERMAKERS WIN: Bison Expelled!");
-        }
-        startNewRound();
+        const room = rooms[socket.roomCode];
+        const target = room.players.find(p => p.name === name);
+        target.alive = false;
+        io.to(socket.roomCode).emit('chatMessage', { user: "SYSTEM", msg: `${name} was EXPELLED!` });
+        if (target.role === "THE BISON 🦬") return endGame(socket.roomCode, "BOILERMAKERS WIN!");
+        startNewRound(room);
     });
 
-    function endGame(msg) {
-        io.emit('gameOver', msg);
-        resetServerState();
-    }
+    socket.on('peekFinished', () => startNewRound(rooms[socket.roomCode]));
 
     socket.on('sendChat', (msg) => {
-        const p = players.find(p => p.id === socket.id);
-        if (p) io.emit('chatMessage', { user: p.name, msg });
+        const room = rooms[socket.roomCode];
+        const p = room?.players.find(p => p.id === socket.id);
+        if (p) io.to(socket.roomCode).emit('chatMessage', { user: p.name, msg });
     });
 
-    // 3. ROBUST DISCONNECT LOGIC
+    function endGame(roomCode, msg) {
+        io.to(roomCode).emit('gameOver', msg);
+        delete rooms[roomCode];
+    }
+
     socket.on('disconnect', () => {
-        const pIndex = players.findIndex(p => p.id === socket.id);
-        if (pIndex !== -1) {
-            const leaver = players[pIndex];
-            players.splice(pIndex, 1);
-            
-            if (gameActive) {
-                resetServerState();
-                io.emit('resetToLobby', `${leaver.name} left. Game terminated.`);
-            }
-            io.emit('updatePlayerList', getPlayerListWithStatus());
+        const roomCode = socket.roomCode;
+        if (roomCode && rooms[roomCode]) {
+            const room = rooms[roomCode];
+            room.players = room.players.filter(p => p.id !== socket.id);
+            if (room.players.length === 0) delete rooms[roomCode];
+            else if (room.gameActive) endGame(roomCode, "A player left. Game ended.");
+            else io.to(roomCode).emit('updatePlayerList', getPlayerListWithStatus(room));
         }
-        if (players.length === 0) resetServerState();
     });
+
+    function getPlayerListWithStatus(room) {
+        return room.players.map(p => ({
+            name: p.name,
+            alive: p.alive,
+            isPres: room.currentPres && p.id === room.currentPres.id,
+            isLimit: (p.name === room.lastPresident || p.name === room.lastVP)
+        }));
+    }
 });
 
-server.listen(3000, () => console.log("Server running on port 3000"));
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Server on ${PORT}`));
