@@ -27,6 +27,21 @@
             const list = document.getElementById('playerList');
             list.innerHTML = players.map(p => `<li>${p.name}</li>`).join('');
         });
+        let myRole = "Unknown";
+
+    function startGame() {
+        socket.emit('startGame');
+    }
+
+    socket.on('assignRole', (role) => {
+        myRole = role;
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('gameUI').style.display = 'block';
+    });
+
+    // Reveal/Hide logic for "Secret" info
+    function reveal() { document.getElementById('roleSecret').innerText = myRole; }
+    function hide() { document.getElementById('roleSecret').innerText = "Secret Role"; }
     </script>
     <div id="gameUI" style="display:none">
         <h2 id="roleSecret">Hold to Reveal Role</h2>
