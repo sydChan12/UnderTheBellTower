@@ -19,8 +19,8 @@
         .filled-tradition { background: var(--p-gold); color: black; border-style: solid; }
         .power-tag { position: absolute; bottom: -20px; font-size: 0.5rem; color: var(--p-gold); }
         #overlay, #vote-overlay, #policy-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        .policy-card { width: 110px; height: 160px; margin: 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
-        #chat-history { height: 150px; overflow-y: auto; padding: 10px; background: #050505; border-top: 1px solid #222; font-size: 0.8rem; }
+        .policy-card { width: 110px; height: 160px; margin: 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
+        #chat-history { flex: 1; overflow-y: auto; padding: 10px; background: #050505; border-top: 1px solid #222; font-size: 0.8rem; }
     </style>
 </head>
 <body>
@@ -78,6 +78,7 @@
     <script>
         const socket = io();
         let myCode = "", myName = "", amHost = false, players = [];
+        let currentHand = []; // Global state for current cards being handled
 
         function showCreate() {
             myName = document.getElementById('user-name').value;
@@ -105,7 +106,6 @@
         });
 
         socket.on('gameStarted', () => document.getElementById('setup-screen').style.display = 'none');
-        
         socket.on('assignRole', d => { window.roleData = d; });
         function reveal(s) { document.getElementById('id-text').innerText = s ? `${window.roleData.role}\n${window.roleData.info}` : "Identity: [Hidden]"; }
 
@@ -138,30 +138,42 @@
         
         socket.on('presDiscardPhase', hand => {
             document.getElementById('draw-btn').style.display = 'none';
-            showPolicyChoice(hand, true);
+            currentHand = hand;
+            showPolicyChoice(true);
         });
 
-        socket.on('vpEnactPhase', data => showPolicyChoice(data.cards, false));
+        socket.on('vpEnactPhase', data => {
+            currentHand = data.cards;
+            showPolicyChoice(false);
+        });
 
-        function showPolicyChoice(cards, isPres) {
+        function showPolicyChoice(isPres) {
+            const container = document.getElementById('p-choices');
             document.getElementById('p-prompt').innerText = isPres ? "President: Discard 1 Card" : "VP: Enact 1 Policy";
-            document.getElementById('p-choices').innerHTML = cards.map((c, i) => `
-                <div class="policy-card" style="background:${c==='Tradition'?'var(--p-gold)':'var(--iu-red)'}" 
-                     onclick="handlePolicyClick(${isPres}, ${i}, ${JSON.stringify(cards)})">${c}</div>
-            `).join('');
+            container.innerHTML = ''; 
+
+            currentHand.forEach((card, i) => {
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'policy-card';
+                cardDiv.style.background = (card === 'Tradition') ? 'var(--p-gold)' : 'var(--iu-red)';
+                cardDiv.innerText = card;
+                cardDiv.onclick = () => handlePolicyClick(isPres, i);
+                container.appendChild(cardDiv);
+            });
             document.getElementById('policy-overlay').style.display = 'flex';
         }
 
-        function handlePolicyClick(isPres, idx, hand) {
+        function handlePolicyClick(isPres, idx) {
             document.getElementById('policy-overlay').style.display = 'none';
             if (isPres) {
-                const discarded = hand.splice(idx, 1)[0];
-                socket.emit('presDiscard', { kept: hand, discarded: discarded });
+                const discarded = currentHand.splice(idx, 1)[0];
+                socket.emit('presDiscard', { kept: currentHand, discarded: discarded });
             } else {
-                const enacted = hand[idx];
-                const discarded = hand.filter((_, i) => i !== idx)[0];
+                const enacted = currentHand[idx];
+                const discarded = currentHand.filter((_, i) => i !== idx)[0];
                 socket.emit('vpEnact', { enacted, discarded });
             }
+            currentHand = [];
         }
 
         socket.on('triggerInvestigate', () => pwr("Investigate", "powerInvestigate"));
@@ -185,6 +197,7 @@
             const h = document.getElementById('chat-history'); h.innerHTML += `<div><b>${d.user}:</b> ${d.msg}</div>`; h.scrollTop = h.scrollHeight;
         });
         function sendChat() { const i = document.getElementById('chat-msg'); if(i.value) { socket.emit('sendChat', i.value); i.value = ''; } }
+        socket.on('errorMsg', m => alert(m));
     </script>
 </body>
 </html>

@@ -54,7 +54,7 @@ io.on('connection', (socket) => {
         if (!room || room.players.length < 5) return socket.emit('errorMsg', "Need 5+ players.");
         
         room.gameActive = true;
-        // 11 IU (Construction), 6 Purdue (Tradition)
+        // 11 Construction (IU), 6 Tradition (Purdue)
         room.deck = [...Array(6).fill("Tradition"), ...Array(11).fill("Construction")].sort(() => 0.5 - Math.random());
         room.discardPile = [];
         
@@ -69,7 +69,7 @@ io.on('connection', (socket) => {
             io.to(bison.id).emit('assignRole', { role: bison.role, info: `Spy: ${spy.name}` });
             io.to(spy.id).emit('assignRole', { role: spy.role, info: `Bison: ${bison.name}` });
         } else {
-            let spyCount = count <= 8 ? 2 : 3;
+            let spyCount = (count <= 8) ? 2 : 3;
             let spies = shuffled.slice(1, 1 + spyCount);
             spies.forEach(s => { 
                 s.role = "HOOSIER SPY 🚩"; s.party = "Fascist"; 
@@ -89,6 +89,14 @@ io.on('connection', (socket) => {
         io.to(socket.roomCode).emit('gameStarted');
         startNewRound(room);
     });
+
+    function shuffleIfNecessary(room, needed) {
+        if (room.deck.length < needed) {
+            room.deck = [...room.deck, ...room.discardPile].sort(() => 0.5 - Math.random());
+            room.discardPile = [];
+            io.to(socket.roomCode).emit('chatMessage', { user: "SYSTEM", msg: "Deck empty. Reshuffling discards..." });
+        }
+    }
 
     function startNewRound(room) {
         if (!room.gameActive) return;
@@ -134,14 +142,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    function shuffleIfNecessary(room, needed) {
-        if (room.deck.length < needed) {
-            room.deck = [...room.deck, ...room.discardPile].sort(() => 0.5 - Math.random());
-            room.discardPile = [];
-            io.to(socket.roomCode).emit('chatMessage', { user: "SYSTEM", msg: "Deck empty. Reshuffling discards..." });
-        }
-    }
-
     socket.on('drawThree', () => {
         const room = rooms[socket.roomCode];
         shuffleIfNecessary(room, 3);
@@ -151,7 +151,7 @@ io.on('connection', (socket) => {
     socket.on('presDiscard', (data) => {
         const room = rooms[socket.roomCode];
         room.discardPile.push(data.discarded);
-        io.to(room.currentVP.id).emit('vpEnactPhase', { cards: data.kept, canVeto: room.enactedPolicies.construction >= 5 });
+        io.to(room.currentVP.id).emit('vpEnactPhase', { cards: data.kept });
     });
 
     socket.on('vpEnact', (data) => {
