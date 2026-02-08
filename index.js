@@ -242,10 +242,30 @@ io.on('connection', (socket) => {
     socket.on('powerExpel', (name) => {
         const room = rooms[socket.roomCode];
         const target = room.players.find(p => p.name === name);
+        if (!target) return;
+
         target.alive = false;
-        io.to(socket.roomCode).emit('chatMessage', { user: "SYSTEM", msg: `${name} was EXPELLED!` });
-        if (target.role === "THE BISON 🦬") return endGame(socket.roomCode, "BOILERMAKERS WIN!");
-        startNewRound(room);
+        
+        // Tell everyone to show the "Expelled" screen
+        io.to(socket.roomCode).emit('expelAnimation', { 
+            name: target.name, 
+            isBison: target.role === "THE BISON 🦬" 
+        });
+
+        // If the Bison is dead, end the game after a short delay
+        if (target.role === "THE BISON 🦬") {
+            setTimeout(() => {
+                endGame(socket.roomCode, "BOILERMAKERS WIN: The Bison has been expelled!");
+            }, 3000);
+        }
+    });
+
+    // New listener to resume the game after the prompt
+    socket.on('resumeAfterExpel', () => {
+        const room = rooms[socket.roomCode];
+        if (room && socket.id === room.currentPres.id) {
+            startNewRound(room);
+        }
     });
 
     socket.on('peekFinished', () => startNewRound(rooms[socket.roomCode]));
