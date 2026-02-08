@@ -8,9 +8,10 @@
         
         #setup-screen { position: fixed; inset: 0; background: var(--bg); z-index: 2000; display: flex; align-items: center; justify-content: center; }
         .card { background: #111; padding: 30px; border: 2px solid var(--p-gold); border-radius: 8px; width: 320px; text-align: center; }
-        input { padding: 10px; margin: 5px; width: 80%; background: #000; color: white; border: 1px solid #444; }
-        .btn { padding: 10px 20px; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; margin-top: 10px; }
+        input { padding: 12px; margin: 8px 0; width: 90%; background: #000; color: white; border: 1px solid #444; border-radius: 4px; }
+        .btn { padding: 12px 20px; border: none; font-weight: bold; cursor: pointer; border-radius: 4px; margin-top: 10px; width: 100%; transition: opacity 0.2s; }
         .btn-gold { background: var(--p-gold); color: black; }
+        .btn-outline { background: transparent; border: 1px solid #444; color: #888; }
 
         #sidebar { width: 280px; background: #000; border-right: 1px solid #333; display: flex; flex-direction: column; }
         #player-list { flex: 1; padding: 15px; overflow-y: auto; }
@@ -18,19 +19,12 @@
 
         #game-area { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 20px; overflow-y: auto; }
         
-        /* Piles */
         .pile-container { display: flex; gap: 30px; margin-bottom: 20px; }
-        .card-pile {
-            width: 70px; height: 95px; border: 2px solid var(--p-gold); border-radius: 6px;
-            display: flex; align-items: center; justify-content: center; background: #1a1a1a;
-        }
+        .card-pile { width: 70px; height: 95px; border: 2px solid var(--p-gold); border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #1a1a1a; }
         .count-badge { font-weight: bold; font-size: 1.4rem; color: var(--p-gold); }
         .shuffling { animation: shufflePulse 0.8s ease-in-out 2; }
-        @keyframes shufflePulse {
-            50% { transform: scale(1.1); box-shadow: 0 0 20px var(--p-gold); border-color: white; }
-        }
+        @keyframes shufflePulse { 50% { transform: scale(1.1); box-shadow: 0 0 20px var(--p-gold); border-color: white; } }
 
-        /* Tracker */
         .tracker-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; background: #111; padding: 10px; border-radius: 10px; border: 1px solid #333; }
         .chaos-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #444; background: #000; transition: all 0.3s; }
         .chaos-dot.active { background: var(--iu-red); box-shadow: 0 0 10px var(--iu-red); border-color: #ff4d4d; }
@@ -49,15 +43,21 @@
 
     <div id="setup-screen">
         <div class="card" id="start-card">
-            <h2 style="color:var(--p-gold)">THE BELL TOWER</h2>
+            <h2 style="color:var(--p-gold); margin-bottom: 20px;">THE BELL TOWER</h2>
             <input id="user-name" placeholder="Your Name">
-            <button class="btn btn-gold" onclick="showCreate()">Create Room</button>
-            <button class="btn" style="background:#222; color:white;" onclick="showJoin()">Join Room</button>
+            <hr style="border: 0; border-top: 1px solid #333; margin: 15px 0;">
+            <button class="btn btn-gold" onclick="createRoom()">Create New Room</button>
+            <div style="margin: 15px 0; font-size: 0.8rem; color: #666;">— OR —</div>
+            <input id="join-code" placeholder="Enter 5-Digit Code">
+            <button class="btn btn-outline" onclick="joinRoom()">Join Existing Room</button>
         </div>
+
         <div class="card" id="lobby-card" style="display:none">
-            <h3 id="room-display"></h3>
-            <div id="lobby-players" style="text-align:left; margin:15px 0; font-size:0.9rem"></div>
+            <h3 id="room-display" style="color: var(--p-gold)"></h3>
+            <div style="margin-top: 10px; font-size: 0.8rem; color: #888;">PLAYERS IN LOBBY:</div>
+            <div id="lobby-players" style="text-align:left; margin:10px 0; padding: 10px; background: #000; border-radius: 4px; min-height: 50px;"></div>
             <button id="host-start-btn" class="btn btn-gold" style="display:none" onclick="socket.emit('startGame')">Start Game</button>
+            <p id="wait-msg" style="font-size:0.8rem; opacity:0.6">Waiting for more players...</p>
         </div>
     </div>
 
@@ -67,12 +67,12 @@
         <input id="chat-msg" placeholder="Chat..." onkeydown="if(event.key==='Enter') sendChat()" style="width:100%; border:none; box-sizing:border-box; padding:12px;">
         <div style="padding:15px; background:#111; border-top:1px solid var(--p-gold)">
             <p id="id-text" style="font-size:0.7rem; color:#888; white-space: pre-line;">Identity: [Hidden]</p>
-            <button class="btn btn-gold" style="width:100%" onmousedown="reveal(true)" onmouseup="reveal(false)" ontouchstart="reveal(true)" ontouchend="reveal(false)">HOLD REVEAL</button>
+            <button class="btn btn-gold" style="width:100%; padding: 8px;" onmousedown="reveal(true)" onmouseup="reveal(false)" ontouchstart="reveal(true)" ontouchend="reveal(false)">HOLD REVEAL</button>
         </div>
     </div>
 
     <div id="game-area">
-        <div id="status" style="border:1px solid var(--p-gold); padding:10px 20px; border-radius:20px; margin-bottom:20px">Join a room...</div>
+        <div id="status" style="border:1px solid var(--p-gold); padding:10px 20px; border-radius:20px; margin-bottom:20px">Lobby</div>
         
         <div class="pile-container">
             <div style="text-align:center"><div class="card-pile" id="draw-pile-visual"><span id="deck-count" class="count-badge">0</span></div><div style="font-size:0.6rem">DRAW</div></div>
@@ -89,15 +89,17 @@
         
         <div id="nom-zone" style="display:none; margin-top:20px">
             <select id="vp-sel" style="padding:10px; background:#000; color:white; border:1px solid var(--p-gold)"></select>
-            <button class="btn btn-gold" onclick="socket.emit('nominateVP', document.getElementById('vp-sel').value)">Nominate VP</button>
+            <button class="btn btn-gold" style="width: auto; padding: 10px 20px;" onclick="nominate()">Nominate VP</button>
         </div>
-        <button id="draw-btn" class="btn btn-gold" style="display:none" onclick="socket.emit('drawThree')">Draw 3 Cards</button>
+        <button id="draw-btn" class="btn btn-gold" style="display:none; width: auto;" onclick="socket.emit('drawThree')">Draw 3 Cards</button>
     </div>
 
     <div id="vote-overlay">
         <h2 id="v-prompt"></h2>
-        <button class="btn btn-gold" style="width:150px" onclick="cast('Boiler Up!')">BOILER UP!</button>
-        <button class="btn" style="background:var(--iu-red); width:150px; color:white;" onclick="cast('Hammer Down!')">HAMMER DOWN!</button>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-gold" style="width:150px" onclick="cast('Boiler Up!')">BOILER UP!</button>
+            <button class="btn" style="background:var(--iu-red); width:150px; color:white;" onclick="cast('Hammer Down!')">HAMMER DOWN!</button>
+        </div>
     </div>
 
     <div id="policy-overlay"><h2 id="p-prompt"></h2><div id="p-choices" style="display:flex"></div></div>
@@ -108,16 +110,49 @@
         const socket = io();
         let myCode = "", myName = "", amHost = false, players = [], currentHand = [];
 
-        function showCreate() { myName = document.getElementById('user-name').value; if(myName) socket.emit('createRoom', myName); }
-        function showJoin() { myName = document.getElementById('user-name').value; let code = prompt("Enter 5-digit Room Code:"); if(myName && code) socket.emit('joinRoom', { roomCode: code, userName: myName }); }
+        function createRoom() {
+            myName = document.getElementById('user-name').value;
+            if(!myName) return alert("Enter your name first!");
+            socket.emit('createRoom', myName);
+        }
 
-        socket.on('joinedRoom', d => { myCode = d.roomCode; amHost = d.isHost; document.getElementById('start-card').style.display = 'none'; document.getElementById('lobby-card').style.display = 'block'; document.getElementById('room-display').innerText = `ROOM: ${myCode}`; if(amHost) document.getElementById('host-start-btn').style.display = 'block'; });
+        function joinRoom() {
+            myName = document.getElementById('user-name').value;
+            let code = document.getElementById('join-code').value.toUpperCase();
+            if(!myName || !code) return alert("Enter your name and a room code!");
+            socket.emit('joinRoom', { roomCode: code, userName: myName });
+        }
 
-        socket.on('updatePlayerList', data => { players = data; document.getElementById('player-list').innerHTML = data.map(p => `<div style="padding:5px; margin:2px; background:#111; border-left:3px solid ${p.isPres?'var(--p-gold)':'#333'}; opacity:${p.alive?1:0.3}">${p.name} ${p.isPres?'👑':''} ${p.isLimit?'🚫':''}</div>`).join(''); });
+        socket.on('joinedRoom', d => {
+            myCode = d.roomCode; amHost = d.isHost;
+            document.getElementById('start-card').style.display = 'none';
+            document.getElementById('lobby-card').style.display = 'block';
+            document.getElementById('room-display').innerText = `ROOM: ${myCode}`;
+            if(amHost) {
+                document.getElementById('host-start-btn').style.display = 'block';
+                document.getElementById('wait-msg').style.display = 'none';
+            }
+        });
 
-        socket.on('updateCounts', d => { document.getElementById('deck-count').innerText = d.deckCount; document.getElementById('discard-count').innerText = d.discardCount; });
+        socket.on('updatePlayerList', data => {
+            players = data;
+            // Update the Lobby display
+            document.getElementById('lobby-players').innerHTML = data.map(p => `<div style="padding: 5px 0; border-bottom: 1px solid #222;">${p.name} ${p.isHost ? '<span style="color:var(--p-gold); font-size: 0.6rem;">[HOST]</span>' : ''}</div>`).join('');
+            
+            // Update the Sidebar display
+            document.getElementById('player-list').innerHTML = data.map(p => `<div style="padding:5px; margin:2px; background:#111; border-left:3px solid ${p.isPres?'var(--p-gold)':'#333'}; opacity:${p.alive?1:0.3}">${p.name} ${p.isPres?'👑':''} ${p.isLimit?'🚫':''}</div>`).join('');
+        });
 
-        socket.on('reshuffleOccurred', () => { const d = document.getElementById('draw-pile-visual'); d.classList.add('shuffling'); setTimeout(() => d.classList.remove('shuffling'), 1600); });
+        socket.on('updateCounts', d => {
+            document.getElementById('deck-count').innerText = d.deckCount;
+            document.getElementById('discard-count').innerText = d.discardCount;
+        });
+
+        socket.on('reshuffleOccurred', () => {
+            const d = document.getElementById('draw-pile-visual');
+            d.classList.add('shuffling');
+            setTimeout(() => d.classList.remove('shuffling'), 1600);
+        });
 
         socket.on('assignRole', d => { window.roleData = d; });
         function reveal(s) { document.getElementById('id-text').innerText = s ? `${window.roleData.role}\n${window.roleData.info}` : "Identity: [Hidden]"; }
@@ -133,17 +168,41 @@
             for(let i=1; i<=3; i++) { const dot = document.getElementById(`dot-${i}`); i <= d.electionTracker ? dot.classList.add('active') : dot.classList.remove('active'); }
         });
 
-        socket.on('newRound', d => { document.getElementById('status').innerText = `Presidential Turn: ${d.presidentName}`; if(socket.id === d.presidentId){ document.getElementById('nom-zone').style.display = 'block'; document.getElementById('vp-sel').innerHTML = players.filter(p => p.name !== d.presidentName && p.alive && !p.isLimit).map(p => `<option value="${p.name}">${p.name}</option>`).join(''); } else document.getElementById('nom-zone').style.display = 'none'; });
+        socket.on('newRound', d => {
+            document.getElementById('status').innerText = `Presidential Turn: ${d.presidentName}`;
+            if(socket.id === d.presidentId){
+                document.getElementById('nom-zone').style.display = 'block';
+                document.getElementById('vp-sel').innerHTML = players.filter(p => p.name !== d.presidentName && p.alive && !p.isLimit).map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+            } else {
+                document.getElementById('nom-zone').style.display = 'none';
+            }
+        });
 
-        socket.on('startVoting', d => { document.getElementById('v-prompt').innerText = `Elect ${d.pres} & ${d.vp}?`; document.getElementById('vote-overlay').style.display = 'flex'; });
+        function nominate() {
+            const val = document.getElementById('vp-sel').value;
+            socket.emit('nominateVP', val);
+            document.getElementById('nom-zone').style.display = 'none'; // Hide immediately after clicking
+        }
+
+        socket.on('startVoting', d => {
+            document.getElementById('v-prompt').innerText = `Elect ${d.pres} & ${d.vp}?`;
+            document.getElementById('vote-overlay').style.display = 'flex';
+        });
 
         function cast(v) { socket.emit('submitVote', v); document.getElementById('vote-overlay').style.display = 'none'; }
         
         socket.on('presDrawPhase', () => document.getElementById('draw-btn').style.display = 'block');
         
-        socket.on('presDiscardPhase', hand => { document.getElementById('draw-btn').style.display = 'none'; currentHand = hand; showPolicyChoice(true); });
+        socket.on('presDiscardPhase', hand => {
+            document.getElementById('draw-btn').style.display = 'none';
+            currentHand = hand;
+            showPolicyChoice(true);
+        });
 
-        socket.on('vpEnactPhase', data => { currentHand = data.cards; showPolicyChoice(false); });
+        socket.on('vpEnactPhase', data => {
+            currentHand = data.cards;
+            showPolicyChoice(false);
+        });
 
         function showPolicyChoice(isPres) {
             const container = document.getElementById('p-choices');

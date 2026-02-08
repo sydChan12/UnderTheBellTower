@@ -46,6 +46,7 @@ io.on('connection', (socket) => {
         socket.join(roomCode);
         socket.roomCode = roomCode;
         socket.emit('joinedRoom', { roomCode, isHost, name });
+        // Update everyone in the room immediately
         io.to(roomCode).emit('updatePlayerList', getPlayerListWithStatus(room));
     }
 
