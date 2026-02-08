@@ -34,6 +34,20 @@
         .filled-construction { background: transparent; border-style: solid; color: transparent; background-image: url('hoosierCard.png'); background-size: contain; background-repeat: no-repeat; background-position: center;}
         .filled-tradition { background: transparent; color: black; border-style: solid; color: transparent; background-image: url('boilermakerCard.png'); background-size: contain; background-repeat: no-repeat; background-position: center;}
         .power-tag { position: absolute; bottom: -20px; font-size: 0.5rem; color: var(--p-gold); }
+        .discarding {
+            animation: discard-animation 0.6s forwards;
+            pointer-events: none;
+        }
+        @keyframes discard-animation {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100px) rotate(15deg);
+                opacity: 0;
+            }
+        }
 
         #overlay, #vote-overlay, #policy-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
        
@@ -437,10 +451,13 @@ socket.on('expelAnimation', d => {
 
         cardDiv.onclick = () => {
             if (isPres) {
-                // Pres discards one, sends remaining 2 to VP
-                currentHand.splice(i, 1);
-                socket.emit('presDiscard', currentHand);
-                document.getElementById('overlay').style.display = 'none';
+                cardDiv.classList.add('discarding');
+                setTimeout(() => {
+                    currentHand.splice(i, 1);
+                    socket.emit('presDiscard', currentHand);
+                    document.getElementById('overlay').style.display = 'none';
+                })
+                
             } else {
                 // VP picks one to enact
                 const enacted = currentHand[i];
