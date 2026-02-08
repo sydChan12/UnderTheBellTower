@@ -125,7 +125,7 @@ io.on('connection', (socket) => {
                 console.log(`Skipping ${room.currentPres.name} (Expelled)`);
                 if (roomCode) {
                     io.to(roomCode).emit('chatMessage', { 
-                        user: "SYSTEM",
+                        user: "STUDENT COUNCIL",
                         msg: `${room.currentPres.name} is expelled and cannot be President.`,
                         color: '#888'
                     });
@@ -188,7 +188,7 @@ io.on('connection', (socket) => {
                     room.electionTracker = 0;
                     shuffleIfNecessary(room, 1);
                     const forced = room.deck.shift();
-                    io.to(socket.roomCode).emit('chatMessage', { user: "GOVERNMENT", msg: `Elections failed 3x! Forced policy: ${forced}` });
+                    io.to(socket.roomCode).emit('chatMessage', { user: "STUDENT COUNCIL", msg: `Elections failed 3x! Forced policy: ${forced}` });
                     applyPolicy(socket.roomCode, forced, true);
                 } else {
                     startNewRound(room);

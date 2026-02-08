@@ -53,12 +53,24 @@
         </div>
 
         <div class="card" id="lobby-card" style="display:none">
-            <h3 id="room-display" style="color: var(--p-gold)"></h3>
-            <div style="margin-top: 10px; font-size: 0.8rem; color: #888;">PLAYERS IN LOBBY:</div>
-            <div id="lobby-players" style="text-align:left; margin:10px 0; padding: 10px; background: #000; border-radius: 4px; min-height: 50px;"></div>
-            <button id="host-start-btn" class="btn btn-gold" style="display:none" onclick="socket.emit('startGame')">Start Game</button>
-            <p id="wait-msg" style="font-size:0.8rem; opacity:0.6">Waiting for more players...</p>
-        </div>
+    <h3 id="room-display" style="color: var(--p-gold)"></h3>
+    
+    <div style="text-align:left; margin: 15px 0; padding: 10px; background: #000; border: 1px solid #333; border-radius: 4px; font-size: 0.75rem; max-height: 150px; overflow-y: auto;">
+        <strong style="color: var(--p-gold);">CAMPUS RULES:</strong>
+        <ul style="margin: 5px 0; padding-left: 15px; color: #bbb;">
+            <li>Boilermakers: Enact 5 Purdue policies.</li>
+            <li>Hoosiers: Enact 6 IU policies.</li>
+            <li>If 3 IU policies pass, Hoosiers win if the Bison is elected VP.</li>
+            <li>Expelled players cannot vote, talk, or lead.</li>
+        </ul>
+    </div>
+
+    <div style="margin-top: 10px; font-size: 0.8rem; color: #888;">PLAYERS IN LOBBY:</div>
+    <div id="lobby-players" style="text-align:left; margin:10px 0; padding: 10px; background: #000; border-radius: 4px; min-height: 50px;"></div>
+    
+    <button id="host-start-btn" class="btn btn-gold" style="display:none" onclick="socket.emit('startGame')">Start Game</button>
+    <p id="wait-msg" style="font-size:0.8rem; opacity:0.6">Waiting for more players...</p>
+</div>
     </div>
 
     <div id="sidebar">
@@ -84,8 +96,8 @@
             <div id="dot-1" class="chaos-dot"></div><div id="dot-2" class="chaos-dot"></div><div id="dot-3" class="chaos-dot"></div>
         </div>
 
-        <div><h5>TRADITION (PURDUE)</h5><div class="track" id="tradition-track"></div></div>
-        <div style="margin-top:20px"><h5>CONSTRUCTION (IU)</h5><div class="track" id="construction-track"></div></div>
+        <div><h5>PURDUE</h5><div class="track" id="tradition-track"></div></div>
+        <div style="margin-top:20px"><h5>IU</h5><div class="track" id="construction-track"></div></div>
         
         <div id="nom-zone" style="display:none; margin-top:20px">
             <select id="vp-sel" style="padding:10px; background:#000; color:white; border:1px solid var(--p-gold)"></select>
@@ -330,7 +342,7 @@ socket.on('expelAnimation', d => {
         });
 
         socket.on('gameStarted', () => document.getElementById('setup-screen').style.display = 'none');
-        socket.on('investigateResult', d => alert(`${d.name}'s Party: ${d.party === 'Fascist' ? 'Fascist (Hoosier)' : 'Liberal (Boilermaker)'}`));
+        socket.on('investigateResult', d => alert(`${d.name}'s Party: ${d.party === 'Fascist' ? 'Hoosier (IU)' : 'Boilermaker (Purdue)'}`));
         socket.on('gameOver', m => { alert(m); location.reload(); });
         
         socket.on('chatMessage', d => { 
