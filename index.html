@@ -203,15 +203,59 @@
         function reveal(s) { document.getElementById('id-text').innerText = s && window.roleData ? `${window.roleData.role}\n${window.roleData.info}` : "Identity: [Hidden]"; }
 
         socket.on('policyUpdated', d => {
-            const ct = document.getElementById('construction-track'); ct.innerHTML = '';
-            for(let i=1; i<=6; i++){
-                let p = (i===1&&d.playerCount>=9)||(i===2&&d.playerCount>=7)?"Investigate":i===3?"Peek":i===4||i===5?"Expel":"";
-                ct.innerHTML += `<div class="slot ${i<=d.enactedPolicies.construction?'filled-construction':''}">${i<=d.enactedPolicies.construction?'IU':i}<div class="power-tag">${p}</div></div>`;
+    // 1. Update the Construction (IU) Track
+    const ct = document.getElementById('construction-track');
+    if (ct) {
+        ct.innerHTML = '';
+        for (let i = 1; i <= 6; i++) {
+            // Determine which power text to show under the slot
+            let powerText = "";
+            if ((i === 1 && d.playerCount >= 9) || (i === 2 && d.playerCount >= 7)) {
+                powerText = "Investigate";
+            } else if (i === 3) {
+                powerText = "Peek";
+            } else if (i === 4 || i === 5) {
+                powerText = "Expel";
             }
-            const tt = document.getElementById('tradition-track'); tt.innerHTML = '';
-            for(let i=1; i<=5; i++) tt.innerHTML += `<div class="slot ${i<=d.enactedPolicies.tradition?'filled-tradition':''}">${i<=d.enactedPolicies.tradition?'PURDUE':i}</div>`;
-            for(let i=1; i<=3; i++) { const dot = document.getElementById(`dot-${i}`); i <= d.electionTracker ? dot.classList.add('active') : dot.classList.remove('active'); }
-        });
+
+            // Check if this slot should be filled
+            const isFilled = i <= d.enactedPolicies.construction;
+            const filledClass = isFilled ? 'filled-construction' : '';
+            const slotContent = isFilled ? '' : i; // Show number only if empty
+
+            ct.innerHTML += `
+                <div class="slot ${filledClass}">
+                    ${slotContent}
+                    <div class="power-tag">${powerText}</div>
+                </div>`;
+        }
+    }
+
+    // 2. Update the Tradition (Purdue) Track
+    const tt = document.getElementById('tradition-track');
+    if (tt) {
+        tt.innerHTML = '';
+        for (let i = 1; i <= 5; i++) {
+            const isFilled = i <= d.enactedPolicies.tradition;
+            const filledClass = isFilled ? 'filled-tradition' : '';
+            const slotContent = isFilled ? '' : i;
+
+            tt.innerHTML += `<div class="slot ${filledClass}">${slotContent}</div>`;
+        }
+    }
+
+    // 3. Update the Election Tracker Dots (Chaos Dots)
+    for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById(`dot-${i}`);
+        if (dot) {
+            if (i <= d.electionTracker) {
+                dot.classList.add('active');
+            } else {
+                dot.classList.remove('active');
+            }
+        }
+    }
+});
 
         socket.on('newRound', d => {
             document.getElementById('status').innerText = `Presidential Turn: ${d.presidentName}`;
