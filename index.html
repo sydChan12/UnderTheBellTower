@@ -198,11 +198,12 @@
 
         socket.on('startVoting', d => {
             const me = players.find(p => p.name === myName);
-            if (me && me.alive) {
+            if (me && me.alive && !me.expelled) {
                 document.getElementById('v-prompt').innerText = `Elect ${d.pres} & ${d.vp}?`;
                 document.getElementById('vote-overlay').style.display = 'flex';
             } else {
                 document.getElementById('status').innerText = `Election: ${d.pres} & ${d.vp} (Watching)`;
+                document.getElementById('vote-overlay').style.display = 'none';
             }
         });
 

@@ -122,11 +122,11 @@ io.on('connection', (socket) => {
                 foundEligible = true;
                 break;
             } else {
-                console.log(`Skipping ${room.currentPres.name} (Expelled)');`);
+                console.log(`Skipping ${room.currentPres.name} (Expelled)`);
                 if (roomCode) {
                     io.to(roomCode).emit('chatMessage', { 
                         user: "SYSTEM",
-                        msg: '${room.currentPres.name} is expelled and cannot be President.',
+                        msg: `${room.currentPres.name} is expelled and cannot be President.`,
                         color: '#888'
                     });
                 }
@@ -161,8 +161,9 @@ io.on('connection', (socket) => {
         if (!room) return;
 
         const player = room.players.find(p => p.id === socket.id);
-        if (!player || !player.alive) return;
-
+        if (!player || !player.alive || player.expelled) {
+            return socket.emit('errorMsg', "You cannot vote.");
+        }
         room.currentVotes[socket.id] = { name: player.name, choice: vote };
         const living = room.players.filter(p => p.alive && !p.expelled);
 
