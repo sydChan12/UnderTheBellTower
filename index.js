@@ -144,7 +144,7 @@ io.on('connection', (socket) => {
         if (!player || !player.alive) return;
 
         room.currentVotes[socket.id] = { name: player.name, choice: vote };
-        const living = room.players.filter(p => p.alive);
+        const living = room.players.filter(p => p.alive && !p.expelled);
 
         if (Object.keys(room.currentVotes).length === living.length) {
             // Log results with color
@@ -245,14 +245,14 @@ io.on('connection', (socket) => {
         const target = room.players.find(p => p.name === name);
         if (!target) return;
 
-        target.alive = false;
+        target.expelled = true;
         io.to(socket.roomCode).emit('expelAnimation', { 
             name: target.name, 
             isBison: target.role === "THE BISON 🦬" 
         });
 
         if (target.role === "THE BISON 🦬") {
-            setTimeout(() => endGame(socket.roomCode, "BOILERMAKERS WIN!"), 4000);
+            setTimeout(() => endGame(socket.roomCode, "BOILERMAKERS WIN! (Bison was expelled)"), 4000);
         }
     });
 
@@ -268,7 +268,8 @@ io.on('connection', (socket) => {
     socket.on('sendChat', (msg) => {
         const room = rooms[socket.roomCode];
         const p = room?.players.find(p => p.id === socket.id);
-        if (p) io.to(socket.roomCode).emit('chatMessage', { user: p.name, msg });
+        if (p && !p.expelled) io.to(socket.roomCode).emit('chatMessage', { user: p.name, msg });
+        
     });
 
     function endGame(roomCode, msg) {
@@ -292,8 +293,9 @@ io.on('connection', (socket) => {
             name: p.name,
             id: p.id,
             alive: p.alive,
+            expelled: p.expelled || false,
             isPres: room.currentPres && p.id === room.currentPres.id,
-            isLimit: (p.name === room.lastPresident || p.name === room.lastVP)
+            isLimit: (p.name === room.lastPresident || p.name === room.lastVP || p.expelled)
         }));
     }
 });
