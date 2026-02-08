@@ -1,184 +1,155 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Bell Tower: Purdue vs IU</title>
-    <style>
-        :root { --p-gold: #CEB888; --iu-red: #990000; --bg: #0b0b0b; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        
-        /* Themed Cards */
-        .card-purdue { background: linear-gradient(135deg, #CEB888, #8E793E); color: black; border: 2px solid #000; }
-        .card-iu { background: linear-gradient(135deg, #990000, #660000); color: white; border: 2px solid #fff; }
-        .policy-card { width: 120px; height: 170px; margin: 10px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); text-align: center; padding: 5px; }
+<script>
+    const socket = io();
+    let myCode = "", myName = "", amHost = false, players = [], currentHand = [], boardState = {};
 
-        #setup-screen { position: fixed; inset: 0; background: var(--bg); z-index: 2000; display: flex; align-items: center; justify-content: center; }
-        .setup-box { background: #111; padding: 40px; border: 2px solid var(--p-gold); border-radius: 15px; width: 350px; text-align: center; }
-        
-        #sidebar { width: 300px; background: #000; border-right: 1px solid #333; display: flex; flex-direction: column; }
-        #game-area { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 20px; position: relative; }
-        
-        .tracker-row { display: flex; gap: 15px; margin: 20px 0; background: #1a1a1a; padding: 15px; border-radius: 50px; border: 1px solid #333; }
-        .chaos-dot { width: 25px; height: 25px; border-radius: 50%; border: 2px solid #444; background: #000; transition: 0.4s; }
-        .chaos-dot.active { background: var(--iu-red); box-shadow: 0 0 15px var(--iu-red); }
+    function createRoom() {
+        myName = document.getElementById('user-name').value;
+        if(!myName) return alert("Enter your name first!");
+        socket.emit('createRoom', myName);
+    }
 
-        .btn { padding: 12px 25px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; margin: 5px 0; }
-        .btn-gold { background: var(--p-gold); color: black; }
-        
-        #overlay, #vote-overlay, #policy-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        
-        .track { display: flex; gap: 10px; margin: 10px 0; }
-        .slot { width: 90px; height: 120px; border: 2px dashed #333; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; }
-        
-        .shake { animation: shake 0.5s; }
-        @keyframes shake { 0%, 100% { transform: translate(0); } 25% { transform: translate(-5px); } 75% { transform: translate(5px); } }
-    </style>
-</head>
-<body>
+    function joinRoom() {
+        myName = document.getElementById('user-name').value;
+        let code = document.getElementById('join-code').value.toUpperCase();
+        if(!myName || !code) return alert("Enter your name and a room code!");
+        socket.emit('joinRoom', { roomCode: code, userName: myName });
+    }
 
-    <div id="setup-screen">
-        <div class="setup-box" id="start-card">
-            <h1 style="color:var(--p-gold)">THE BELL TOWER</h1>
-            <input id="user-name" placeholder="Enter Name" style="width:90%; padding:10px; margin-bottom:10px;">
-            <button class="btn btn-gold" onclick="createRoom()">Create New Game</button>
-            <div style="margin:10px">or</div>
-            <input id="join-code" placeholder="Enter 5-Digit Code" style="width:90%; padding:10px;">
-            <button class="btn" style="background:#333; color:white;" onclick="joinRoom()">Join Game</button>
-        </div>
-        <div class="setup-box" id="lobby-card" style="display:none">
-            <h2 id="room-display" style="color:var(--p-gold)"></h2>
-            <div id="lobby-players" style="text-align:left; margin:20px 0; background:#000; padding:10px;"></div>
-            <button id="start-btn" class="btn btn-gold" style="display:none" onclick="socket.emit('startGame')">START SESSION</button>
-            <p id="wait-msg" style="font-size:0.8rem; opacity:0.6">Waiting for Host...</p>
-        </div>
-    </div>
-
-    <div id="sidebar">
-        <div id="player-list" style="padding:20px; flex:1"></div>
-        <div id="chat-history" style="height:200px; overflow-y:auto; background:#050505; padding:10px; font-size:0.8rem; border-top:1px solid #222"></div>
-        <div style="padding:15px; background:#111;">
-            <p id="id-text" style="font-size:0.7rem; color:#888">Identity: [Hidden]</p>
-            <button class="btn btn-gold" style="font-size:0.7rem" onmousedown="reveal(true)" onmouseup="reveal(false)">REVEAL ROLE</button>
-        </div>
-    </div>
-
-    <div id="game-area">
-        <div id="status-bar" style="background:var(--p-gold); color:black; padding:5px 20px; border-radius:20px; font-weight:bold; margin-bottom:20px;">LOBBY</div>
-        
-        <div class="tracker-row">
-            <div id="dot-1" class="chaos-dot"></div><div id="dot-2" class="chaos-dot"></div><div id="dot-3" class="chaos-dot"></div>
-        </div>
-
-        <h3>PURDUE TRADITION</h3>
-        <div class="track" id="purdue-track"></div>
-        
-        <h3 style="margin-top:30px">IU CONSTRUCTION</h3>
-        <div class="track" id="iu-track"></div>
-
-        <div id="pres-controls" style="margin-top:20px; display:none">
-            <select id="vp-select" style="padding:10px; width:200px"></select>
-            <button class="btn btn-gold" onclick="nominate()">Nominate VP</button>
-        </div>
-        <button id="draw-btn" class="btn btn-gold" style="display:none; width:auto" onclick="socket.emit('drawThree')">Draw 3 Cards</button>
-    </div>
-
-    <div id="vote-overlay">
-        <h2 id="vote-prompt"></h2>
-        <div style="display:flex; gap:20px">
-            <button class="btn btn-gold" style="width:150px" onclick="cast('Boiler Up!')">BOILER UP!</button>
-            <button class="btn" style="background:var(--iu-red); color:white; width:150px" onclick="cast('Hammer Down!')">HAMMER DOWN!</button>
-        </div>
-    </div>
-
-    <div id="policy-overlay"><h2 id="p-prompt"></h2><div id="p-choices" style="display:flex"></div></div>
-    <div id="overlay"><h2 id="o-title"></h2><div id="o-content"></div></div>
-
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let players = [], myName = "", currentHand = [], board = { construction: 0, tradition: 0 };
-
-        function createRoom() { myName = document.getElementById('user-name').value; if(myName) socket.emit('createRoom', myName); }
-        function joinRoom() { myName = document.getElementById('user-name').value; let code = document.getElementById('join-code').value.toUpperCase(); if(myName && code) socket.emit('joinRoom', {roomCode: code, userName: myName}); }
-        function reveal(s) { document.getElementById('id-text').innerText = s ? `${window.roleData.role}\n${window.roleData.info}` : "Identity: [Hidden]"; }
-        function cast(v) { socket.emit('submitVote', v); document.getElementById('vote-overlay').style.display='none'; }
-        function nominate() { socket.emit('nominateVP', document.getElementById('vp-select').value); document.getElementById('pres-controls').style.display='none'; }
-
-        socket.on('joinedRoom', d => {
-            document.getElementById('start-card').style.display = 'none';
-            document.getElementById('lobby-card').style.display = 'block';
-            document.getElementById('room-display').innerText = "ROOM: " + d.roomCode;
-            if(d.isHost) document.getElementById('start-btn').style.display = 'block';
-        });
-
-        socket.on('updatePlayerList', data => {
-            players = data;
-            document.getElementById('lobby-players').innerHTML = data.map(p => `<div>• ${p.name}</div>`).join('');
-            document.getElementById('player-list').innerHTML = data.map(p => `<div style="padding:10px; background:#111; margin-bottom:5px; border-left:4px solid ${p.isPres? 'var(--p-gold)':'#333'}; opacity:${p.alive?1:0.3}">${p.name} ${p.isPres?'👑':''} ${p.isLimit?'🚫':''}</div>`).join('');
-        });
-
-        socket.on('newRound', d => {
-            document.getElementById('status-bar').innerText = "PRESIDENT: " + d.presidentName;
-            if(socket.id === d.presidentId) {
-                document.getElementById('pres-controls').style.display = 'block';
-                document.getElementById('vp-select').innerHTML = players.filter(p => p.name !== d.presidentName && p.alive && !p.isLimit).map(p => `<option>${p.name}</option>`).join('');
-            }
-        });
-
-        socket.on('policyUpdated', d => {
-            board = d.enactedPolicies;
-            const pt = document.getElementById('purdue-track'); pt.innerHTML = '';
-            for(let i=1; i<=5; i++) pt.innerHTML += `<div class="slot ${i<=board.tradition?'card-purdue':''}"></div>`;
-            const it = document.getElementById('iu-track'); it.innerHTML = '';
-            for(let i=1; i<=6; i++) it.innerHTML += `<div class="slot ${i<=board.construction?'card-iu':''}"></div>`;
-            for(let i=1; i<=3; i++) document.getElementById('dot-'+i).classList.toggle('active', i <= d.electionTracker);
-        });
-
-        socket.on('presDiscardPhase', h => {
-            document.getElementById('draw-btn').style.display = 'none';
-            showCards(h, true);
-        });
-
-        socket.on('vpEnactPhase', d => showCards(d.cards, false));
-
-        function showCards(hand, isPres) {
-            currentHand = hand;
-            const container = document.getElementById('p-choices'); container.innerHTML = '';
-            document.getElementById('p-prompt').innerText = isPres ? "Discard 1 Card" : "Enact 1 Card";
-            hand.forEach((c, i) => {
-                const el = document.createElement('div');
-                el.className = `policy-card ${c === 'Boilermaker' ? 'card-purdue' : 'card-iu'}`;
-                el.innerHTML = `<span>${c === 'Boilermaker' ? '🚂 PURDUE' : '🚩 IU'}</span><div style="font-size:0.6rem; margin-top:10px">${c==='Boilermaker'?'Tradition':'Construction'}</div>`;
-                el.onclick = () => {
-                    document.getElementById('policy-overlay').style.display = 'none';
-                    if(isPres) {
-                        const kept = [...currentHand]; const disc = kept.splice(i, 1)[0];
-                        socket.emit('presDiscard', {kept, discarded: disc});
-                    } else {
-                        socket.emit('vpEnact', {enacted: c, discarded: currentHand[1-i]});
-                    }
-                };
-                container.appendChild(el);
-            });
-            document.getElementById('policy-overlay').style.display = 'flex';
+    socket.on('joinedRoom', d => {
+        myCode = d.roomCode; amHost = d.isHost;
+        document.getElementById('start-card').style.display = 'none';
+        document.getElementById('lobby-card').style.display = 'block';
+        document.getElementById('room-display').innerText = `ROOM: ${myCode}`;
+        if(amHost) {
+            document.getElementById('host-start-btn').style.display = 'block';
+            document.getElementById('wait-msg').style.display = 'none';
         }
+    });
 
-        socket.on('startVoting', d => {
-            document.getElementById('vote-prompt').innerText = `Elect ${d.pres} & ${d.vp}?`;
-            document.getElementById('vote-overlay').style.display = 'flex';
+    socket.on('updatePlayerList', data => {
+        players = data;
+        document.getElementById('lobby-players').innerHTML = data.map(p => `<div style="padding: 5px 0; border-bottom: 1px solid #222;">${p.name} ${p.isHost ? '<span style="color:var(--p-gold); font-size: 0.6rem;">[HOST]</span>' : ''}</div>`).join('');
+        document.getElementById('player-list').innerHTML = data.map(p => `<div style="padding:5px; margin:2px; background:#111; border-left:3px solid ${p.isPres?'var(--p-gold)':'#333'}; opacity:${p.alive?1:0.3}">${p.name} ${p.isPres?'👑':''} ${p.isLimit?'🚫':''}</div>`).join('');
+    });
+
+    socket.on('updateCounts', d => {
+        document.getElementById('deck-count').innerText = d.deckCount;
+        document.getElementById('discard-count').innerText = d.discardCount;
+    });
+
+    socket.on('assignRole', d => { window.roleData = d; });
+    function reveal(s) { document.getElementById('id-text').innerText = s ? `${window.roleData.role}\n${window.roleData.info}` : "Identity: [Hidden]"; }
+
+    socket.on('policyUpdated', d => {
+        boardState = d; // Store for Veto checking
+        const ct = document.getElementById('construction-track'); ct.innerHTML = '';
+        for(let i=1; i<=6; i++){
+            let p = (i===1&&d.playerCount>=9)||(i===2&&d.playerCount>=7)?"Investigate":i===3?"Peek":i===4||i===5?"Expel":"";
+            ct.innerHTML += `<div class="slot ${i<=d.enactedPolicies.construction?'filled-construction':''}">${i<=d.enactedPolicies.construction?'IU':i}<div class="power-tag">${p}</div></div>`;
+        }
+        const tt = document.getElementById('tradition-track'); tt.innerHTML = '';
+        for(let i=1; i<=5; i++) tt.innerHTML += `<div class="slot ${i<=d.enactedPolicies.tradition?'filled-tradition':''}">${i<=d.enactedPolicies.tradition?'PURDUE':i}</div>`;
+        for(let i=1; i<=3; i++) { const dot = document.getElementById(`dot-${i}`); i <= d.electionTracker ? dot.classList.add('active') : dot.classList.remove('active'); }
+    });
+
+    socket.on('newRound', d => {
+        document.getElementById('status').innerText = `Presidential Turn: ${d.presidentName}`;
+        if(socket.id === d.presidentId){
+            document.getElementById('nom-zone').style.display = 'block';
+            document.getElementById('vp-sel').innerHTML = players.filter(p => p.name !== d.presidentName && p.alive && !p.isLimit).map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+        } else { document.getElementById('nom-zone').style.display = 'none'; }
+    });
+
+    function nominate() {
+        socket.emit('nominateVP', document.getElementById('vp-sel').value);
+        document.getElementById('nom-zone').style.display = 'none';
+    }
+
+    socket.on('startVoting', d => {
+        document.getElementById('v-prompt').innerText = `Elect ${d.pres} & ${d.vp}?`;
+        document.getElementById('vote-overlay').style.display = 'flex';
+    });
+
+    function cast(v) { socket.emit('submitVote', v); document.getElementById('vote-overlay').style.display = 'none'; }
+    
+    socket.on('presDrawPhase', () => document.getElementById('draw-btn').style.display = 'block');
+    
+    socket.on('presDiscardPhase', hand => {
+        document.getElementById('draw-btn').style.display = 'none';
+        currentHand = hand;
+        showPolicyChoice(true);
+    });
+
+    socket.on('vpEnactPhase', data => {
+        currentHand = data.cards;
+        showPolicyChoice(false);
+    });
+
+    function showPolicyChoice(isPres) {
+        const container = document.getElementById('p-choices');
+        document.getElementById('p-prompt').innerText = isPres ? "President: Discard 1 Card" : "VP: Enact 1 Policy";
+        container.innerHTML = ''; 
+        currentHand.forEach((card, i) => {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'policy-card';
+            cardDiv.style.background = (card === 'Tradition') ? 'var(--p-gold)' : 'var(--iu-red)';
+            cardDiv.innerText = card;
+            cardDiv.onclick = () => {
+                document.getElementById('policy-overlay').style.display = 'none';
+                if (isPres) {
+                    const disc = currentHand.splice(i, 1)[0];
+                    socket.emit('presDiscard', { kept: currentHand, discarded: disc });
+                } else {
+                    socket.emit('vpEnact', { enacted: card, discarded: currentHand[1-i] });
+                }
+            };
+            container.appendChild(cardDiv);
         });
 
-        socket.on('triggerExpel', () => {
-            document.getElementById('o-title').innerText = "POWER: EXPEL";
-            let ops = players.filter(p => p.alive && !p.isPres).map(p => `<option>${p.name}</option>`).join('');
-            document.getElementById('o-content').innerHTML = `<select id="ex-s" style="padding:10px; width:100%">${ops}</select><button class="btn btn-gold" onclick="socket.emit('powerExpel', document.getElementById('ex-s').value); document.getElementById('overlay').style.display='none'">Expel Student</button>`;
-            document.getElementById('overlay').style.display = 'flex';
-        });
+        // VETO BUTTON
+        if(!isPres && boardState.enactedPolicies.construction >= 5) {
+            const vBtn = document.createElement('button');
+            vBtn.className = 'btn btn-outline';
+            vBtn.innerText = "REQUEST VETO";
+            vBtn.onclick = () => { socket.emit('requestVeto'); document.getElementById('policy-overlay').style.display = 'none'; };
+            container.appendChild(vBtn);
+        }
+        document.getElementById('policy-overlay').style.display = 'flex';
+    }
 
-        socket.on('gameStarted', () => document.getElementById('setup-screen').style.display = 'none');
-        socket.on('assignRole', d => window.roleData = d);
-        socket.on('presDrawPhase', () => document.getElementById('draw-btn').style.display = 'block');
-        socket.on('gameOver', m => { alert(m); location.reload(); });
-        socket.on('errorMsg', m => alert(m));
-    </script>
-</body>
-</html>
+    // POWER HANDLERS
+    socket.on('triggerExpel', () => {
+        document.getElementById('o-title').innerText = "POWER: EXPEL";
+        let ops = players.filter(p => p.alive && socket.id !== p.id).map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+        document.getElementById('o-content').innerHTML = `<select id="ex-sel" style="padding:10px; width:100%">${ops}</select><button class="btn btn-gold" onclick="socket.emit('powerExpel', document.getElementById('ex-sel').value); document.getElementById('overlay').style.display='none'">EXPEL</button>`;
+        document.getElementById('overlay').style.display = 'flex';
+    });
+
+    socket.on('triggerInvestigate', () => {
+        document.getElementById('o-title').innerText = "POWER: INVESTIGATE";
+        let ops = players.filter(p => p.id !== socket.id).map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+        document.getElementById('o-content').innerHTML = `<select id="inv-sel" style="padding:10px; width:100%">${ops}</select><button class="btn btn-gold" onclick="socket.emit('powerInvestigate', document.getElementById('inv-sel').value); document.getElementById('overlay').style.display='none'">INVESTIGATE</button>`;
+        document.getElementById('overlay').style.display = 'flex';
+    });
+
+    socket.on('vetoRequested', () => {
+        document.getElementById('o-title').innerText = "VETO REQUESTED";
+        document.getElementById('o-content').innerHTML = `<p>The VP wants to discard these policies. Agree?</p><button class="btn btn-gold" onclick="socket.emit('vetoConfirmed', true); document.getElementById('overlay').style.display='none'">AGREE</button><button class="btn" onclick="socket.emit('vetoConfirmed', false); document.getElementById('overlay').style.display='none'">DENY</button>`;
+        document.getElementById('overlay').style.display = 'flex';
+    });
+
+    socket.on('vetoDenied', () => alert("President denied the veto. You must enact a policy."));
+
+    socket.on('triggerPeek', cs => {
+        document.getElementById('o-title').innerText = "Deck Peek";
+        document.getElementById('o-content').innerHTML = cs.map(c => `<div style="padding:10px; margin:5px; background:${c==='Tradition'?'var(--p-gold)':'var(--iu-red)'}">${c}</div>`).join('') + `<button class="btn btn-gold" onclick="socket.emit('peekFinished'); document.getElementById('overlay').style.display='none'">Done</button>`;
+        document.getElementById('overlay').style.display = 'flex';
+    });
+
+    socket.on('gameStarted', () => document.getElementById('setup-screen').style.display = 'none');
+    socket.on('investigateResult', d => alert(`${d.name}'s Party: ${d.party === 'Fascist' ? 'Fascist (Hoosier)' : 'Liberal (Boilermaker)'}`));
+    socket.on('gameOver', m => { alert(m); location.reload(); });
+    socket.on('chatMessage', d => { const h = document.getElementById('chat-history'); h.innerHTML += `<div><b>${d.user}:</b> ${d.msg}</div>`; h.scrollTop = h.scrollHeight; });
+    function sendChat() { const i = document.getElementById('chat-msg'); if(i.value) { socket.emit('sendChat', i.value); i.value = ''; } }
+    socket.on('errorMsg', m => alert(m));
+</script>
