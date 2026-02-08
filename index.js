@@ -264,7 +264,6 @@ io.on('connection', (socket) => {
             msg: `${room.currentPres.name} investigated ${target.name}'s records.`,
             color: 'var(--p-gold)'
         });
-        startNewRound(room);
     });
 
     socket.on('powerExpel', (name) => {
@@ -292,7 +291,12 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('peekFinished', () => startNewRound(rooms[socket.roomCode]));
+    socket.on('peekFinished', () => {
+    const room = rooms[socket.roomCode];
+    if (room) {
+        startNewRound(room);
+    }
+    });
 
     socket.on('sendChat', (msg) => {
         const room = rooms[socket.roomCode];

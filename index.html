@@ -37,6 +37,31 @@
 
         #overlay, #vote-overlay, #policy-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
         .policy-card { width: 110px; height: 160px; margin: 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; }
+        /* Investigative Dossier Style */
+.dossier-card {
+    background: #fdfdfd;
+    color: #111;
+    padding: 40px;
+    border-top: 15px solid var(--p-gold);
+    box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    transform: rotate(-1deg);
+    max-width: 400px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+/* Victory Screen Style */
+.victory-screen {
+    text-align: center;
+    animation: zoomIn 0.5s ease-out;
+}
+.victory-banner {
+    font-size: 4rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    margin: 20px 0;
+    text-shadow: 0 0 20px rgba(255,255,255,0.3);
+}
+@keyframes zoomIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -342,8 +367,49 @@ socket.on('expelAnimation', d => {
         });
 
         socket.on('gameStarted', () => document.getElementById('setup-screen').style.display = 'none');
-        socket.on('investigateResult', d => alert(`${d.name}'s Party: ${d.party === 'Fascist' ? 'Hoosier (IU)' : 'Boilermaker (Purdue)'}`));
-        socket.on('gameOver', m => { alert(m); location.reload(); });
+        // --- Replace the investigateResult listener ---
+socket.on('investigateResult', d => {
+    const overlay = document.getElementById('overlay');
+    const content = document.getElementById('o-content');
+    document.getElementById('o-title').innerText = "CONFIDENTIAL RECORD";
+
+    const partyColor = d.party === 'Fascist' ? 'var(--iu-red)' : '#006600';
+    const partyName = d.party === 'Fascist' ? 'HOOSIER' : 'BOILERMAKER';
+
+    content.innerHTML = `
+        <div class="dossier-card">
+            <h2 style="margin-top:0;">OFFICIAL TRANSCRIPT</h2>
+            <p><strong>SUBJECT:</strong> ${d.name}</p>
+            <p><strong>STATUS:</strong> PROCESSED</p>
+            <hr style="border: 1px dashed #ccc;">
+            <p style="font-size: 1.5rem; text-align: center; font-weight: bold; color: ${partyColor};">
+                AFFILIATION: ${partyName}
+            </p>
+            <button class="btn btn-gold" style="margin-top:20px;" onclick="socket.emit('peekFinished'); document.getElementById('overlay').style.display='none'">CLOSE FILE</button>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+});
+
+// --- Replace the gameOver listener ---
+socket.on('gameOver', m => {
+    const overlay = document.getElementById('overlay');
+    const content = document.getElementById('o-content');
+    const isPurdueWin = m.includes("BOILERMAKERS");
+    
+    document.getElementById('o-title').innerText = "COMMENCEMENT";
+    
+    content.innerHTML = `
+        <div class="victory-screen">
+            <h1 class="victory-banner" style="color: ${isPurdueWin ? 'var(--p-gold)' : 'var(--iu-red)'}">
+                ${m}
+            </h1>
+            <p style="font-size: 1.2rem; letter-spacing: 2px; color: #888;">THE SEMESTER HAS ENDED</p>
+            <button class="btn btn-gold" style="width:200px; margin-top:30px;" onclick="location.reload()">Return to Lobby</button>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+});
         
         socket.on('chatMessage', d => { 
             const h = document.getElementById('chat-history'); 
