@@ -211,30 +211,78 @@
             currentHand = hand;
             showPolicyChoice(true);
         });
+        // --- Add or Update these specific listeners in your index.html <script> ---
 
-        socket.on('expelAnimation', d => {
-            const overlay = document.getElementById('overlay');
-            const content = document.getElementById('o-content');
-            document.getElementById('o-title').innerText = "STUDENT EXPELLED";
-            
-            const me = players.find(p => p.id === socket.id);
-            const isPres = me && me.isPres;
+// 1. Show the dropdown menu when the President needs to expel someone
+socket.on('triggerExpel', () => {
+    const overlay = document.getElementById('overlay');
+    const content = document.getElementById('o-content');
+    document.getElementById('o-title').innerText = "SELECT STUDENT TO EXPEL";
 
-            content.innerHTML = `
-                <div style="text-align:center; padding: 20px;">
-                    <h1 style="color:var(--iu-red); font-size: 3.5rem; margin-bottom: 10px;">${d.name}</h1>
-                    <p style="font-size: 1.2rem; letter-spacing: 1px;">HAS BEEN REMOVED FROM PURDUE</p>
-                    <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-                    ${d.isBison ? `<h2 style="color:var(--p-gold);">THE BISON HAS FALLEN!</h2>` : ''}
-                    <div id="expel-footer">
-                        ${isPres ? 
-                            `<button class="btn btn-gold" onclick="resumeGame()">Continue Term</button>` : 
-                            `<p style="color:#666; font-style: italic;">Waiting for President to acknowledge...</p>`}
-                    </div>
-                </div>
-            `;
-            overlay.style.display = 'flex';
-        });
+    // Filter for players who are still alive and not already expelled
+    const targets = players.filter(p => p.name !== myName && p.alive && !p.expelled);
+
+    content.innerHTML = `
+        <div style="padding:20px; text-align:center;">
+            <select id="expel-sel" style="padding:10px; width:200px; background:#000; color:white; border:1px solid var(--p-gold);">
+                ${targets.map(p => `<option value="${p.name}">${p.name}</option>`).join('')}
+            </select>
+            <br><br>
+            <button class="btn btn-gold" onclick="confirmExpel()">EXPEL FROM CAMPUS</button>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+});
+
+function confirmExpel() {
+    const val = document.getElementById('expel-sel').value;
+    socket.emit('powerExpel', val);
+    // Overlay stays open to show the "Expel Animation" coming from the server
+}
+
+// 2. Update the Player List UI to show the "Expelled" (Silenced) status
+socket.on('updatePlayerList', data => {
+    players = data;
+    document.getElementById('lobby-players').innerHTML = data.map(p => `<div style="padding: 5px 0; border-bottom: 1px solid #222;">${p.name}</div>`).join('');
+    
+    document.getElementById('player-list').innerHTML = data.map(p => `
+        <div style="padding:5px; margin:2px; background:#111; border-left:3px solid ${p.isPres?'var(--p-gold)':'#333'}; opacity:${p.alive?1:0.4}">
+            <span style="${p.expelled ? 'color: #666; font-style: italic;' : ''}">
+                ${p.name} ${p.expelled ? ' (Expelled)' : ''}
+            </span>
+            ${p.isPres ? ' 👑' : ''} 
+            ${p.isLimit ? ' 🚫' : ''}
+        </div>
+    `).join('');
+});
+
+// 3. Update the Expel Animation text to match the new "Silenced" rule
+socket.on('expelAnimation', d => {
+    const overlay = document.getElementById('overlay');
+    const content = document.getElementById('o-content');
+    document.getElementById('o-title').innerText = "CAMPUS RESTRICTION";
+    
+    const me = players.find(p => p.id === socket.id);
+    const isPres = me && me.isPres;
+
+    content.innerHTML = `
+        <div style="text-align:center; padding: 20px;">
+            <h1 style="color:var(--iu-red); font-size: 3rem;">${d.name}</h1>
+            <p>HAS BEEN EXPELLED FROM THE BELL TOWER</p>
+            <p style="font-size:0.8rem; color:#888;">(They can no longer speak, vote, or hold office)</p>
+            <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+            ${d.isBison ? `<h2 style="color:var(--p-gold);">THE BISON HAS BEEN DISCOVERED!</h2>` : ''}
+            <div id="expel-footer">
+                ${isPres ? 
+                    `<button class="btn btn-gold" onclick="resumeGame()">Continue Term</button>` : 
+                    `<p style="color:#666; font-style: italic;">Waiting for President to acknowledge...</p>`}
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+});
+
+        
 
         function resumeGame() {
             document.getElementById('overlay').style.display = 'none';
