@@ -46,7 +46,6 @@ io.on('connection', (socket) => {
         socket.join(roomCode);
         socket.roomCode = roomCode;
         socket.emit('joinedRoom', { roomCode, isHost, name });
-        // Update everyone in the room immediately
         io.to(roomCode).emit('updatePlayerList', getPlayerListWithStatus(room));
     }
 
@@ -126,12 +125,10 @@ io.on('connection', (socket) => {
         io.to(socket.roomCode).emit('newRound', { presidentName: room.currentPres.name, presidentId: room.currentPres.id });
     }
 
-    // Update the nominateVP listener
     socket.on('nominateVP', (vpName) => {
         const room = rooms[socket.roomCode];
         if (!room || !room.currentPres || socket.id !== room.currentPres.id) return;
 
-        // Ensure target is alive
         const target = room.players.find(p => p.name === vpName);
         if (target && target.alive) {
             room.currentVP = target;
@@ -139,21 +136,24 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Update the submitVote listener
     socket.on('submitVote', (vote) => {
         const room = rooms[socket.roomCode];
         if (!room) return;
 
         const player = room.players.find(p => p.id === socket.id);
-        // BLOCK: Dead players cannot vote
         if (!player || !player.alive) return;
 
-        room.currentVotes[socket.id] = vote;
+        room.currentVotes[socket.id] = { name: player.name, choice: vote };
         const living = room.players.filter(p => p.alive);
 
-        // Only wait for votes from living players
         if (Object.keys(room.currentVotes).length === living.length) {
-            const yes = Object.values(room.currentVotes).filter(v => v === 'Boiler Up!').length;
+            // Log results with color
+            Object.values(room.currentVotes).forEach(v => {
+                const color = v.choice === 'Boiler Up!' ? '#00FF00' : '#FF0000';
+                io.to(socket.roomCode).emit('chatMessage', { user: "VOTE", msg: `${v.name}: ${v.choice}`, color: color });
+            });
+
+            const yes = Object.values(room.currentVotes).filter(v => v.choice === 'Boiler Up!').length;
             
             if (yes > (living.length / 2)) {
                 room.electionTracker = 0;
@@ -240,27 +240,22 @@ io.on('connection', (socket) => {
     });
 
     socket.on('powerExpel', (name) => {
-    const room = rooms[socket.roomCode];
-    if (!room) return;
-    const target = room.players.find(p => p.name === name);
-    if (!target) return;
+        const room = rooms[socket.roomCode];
+        if (!room) return;
+        const target = room.players.find(p => p.name === name);
+        if (!target) return;
 
-    target.alive = false;
-    
-    // This triggers the popup you just added to the HTML
-    io.to(socket.roomCode).emit('expelAnimation', { 
-        name: target.name, 
-        isBison: target.role === "THE BISON 🦬" 
+        target.alive = false;
+        io.to(socket.roomCode).emit('expelAnimation', { 
+            name: target.name, 
+            isBison: target.role === "THE BISON 🦬" 
+        });
+
+        if (target.role === "THE BISON 🦬") {
+            setTimeout(() => endGame(socket.roomCode, "BOILERMAKERS WIN!"), 4000);
+        }
     });
 
-    if (target.role === "THE BISON 🦬") {
-        setTimeout(() => endGame(socket.roomCode, "BOILERMAKERS WIN!"), 4000);
-    }
-    // Note: We REMOVED startNewRound(room) from here because 
-    // it now waits for the President to click "Continue Term"
-});
-
-    // New listener to resume the game after the prompt
     socket.on('resumeAfterExpel', () => {
         const room = rooms[socket.roomCode];
         if (room && socket.id === room.currentPres.id) {
@@ -295,6 +290,7 @@ io.on('connection', (socket) => {
     function getPlayerListWithStatus(room) {
         return room.players.map(p => ({
             name: p.name,
+            id: p.id,
             alive: p.alive,
             isPres: room.currentPres && p.id === room.currentPres.id,
             isLimit: (p.name === room.lastPresident || p.name === room.lastVP)

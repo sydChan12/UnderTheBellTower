@@ -136,24 +136,20 @@
 
         socket.on('updatePlayerList', data => {
             players = data;
-            // Update the Lobby display
+            // Lobby display
             document.getElementById('lobby-players').innerHTML = data.map(p => `<div style="padding: 5px 0; border-bottom: 1px solid #222;">${p.name} ${p.isHost ? '<span style="color:var(--p-gold); font-size: 0.6rem;">[HOST]</span>' : ''}</div>`).join('');
             
-            // Update the Sidebar display
-            socket.on('updatePlayerList', data => {
-    players = data;
-    document.getElementById('lobby-players').innerHTML = data.map(p => `<div style="padding: 5px 0; border-bottom: 1px solid #222;">${p.name} ${p.isHost ? '<span style="color:var(--p-gold); font-size: 0.6rem;">[HOST]</span>' : ''}</div>`).join('');
-    
-    document.getElementById('player-list').innerHTML = data.map(p => `
-        <div style="padding:5px; margin:2px; background:#111; border-left:3px solid ${p.isPres?'var(--p-gold)':'#333'}; opacity:${p.alive?1:0.4}">
-            <span style="${p.alive ? '' : 'text-decoration: line-through; color: var(--iu-red);'}">
-                ${p.alive ? '' : '✕ '}${p.name}
-            </span>
-            ${p.isPres ? ' 👑' : ''} 
-            ${p.isLimit ? ' 🚫' : ''}
-        </div>
-    `).join('');
-});
+            // Sidebar display
+            document.getElementById('player-list').innerHTML = data.map(p => `
+                <div style="padding:5px; margin:2px; background:#111; border-left:3px solid ${p.isPres?'var(--p-gold)':'#333'}; opacity:${p.alive?1:0.4}">
+                    <span style="${p.alive ? '' : 'text-decoration: line-through; color: var(--iu-red);'}">
+                        ${p.alive ? '' : '✕ '}${p.name}
+                    </span>
+                    ${p.isPres ? ' 👑' : ''} 
+                    ${p.isLimit ? ' 🚫' : ''}
+                </div>
+            `).join('');
+        });
 
         socket.on('updateCounts', d => {
             document.getElementById('deck-count').innerText = d.deckCount;
@@ -167,7 +163,7 @@
         });
 
         socket.on('assignRole', d => { window.roleData = d; });
-        function reveal(s) { document.getElementById('id-text').innerText = s ? `${window.roleData.role}\n${window.roleData.info}` : "Identity: [Hidden]"; }
+        function reveal(s) { document.getElementById('id-text').innerText = s && window.roleData ? `${window.roleData.role}\n${window.roleData.info}` : "Identity: [Hidden]"; }
 
         socket.on('policyUpdated', d => {
             const ct = document.getElementById('construction-track'); ct.innerHTML = '';
@@ -193,19 +189,15 @@
         function nominate() {
             const val = document.getElementById('vp-sel').value;
             socket.emit('nominateVP', val);
-            document.getElementById('nom-zone').style.display = 'none'; // Hide immediately after clicking
+            document.getElementById('nom-zone').style.display = 'none';
         }
 
         socket.on('startVoting', d => {
-            // Find yourself in the current local players list
             const me = players.find(p => p.name === myName);
-            
-            // Only show the voting buttons if you are still alive
             if (me && me.alive) {
                 document.getElementById('v-prompt').innerText = `Elect ${d.pres} & ${d.vp}?`;
                 document.getElementById('vote-overlay').style.display = 'flex';
             } else {
-                // For dead players, just update the status so they know what's happening
                 document.getElementById('status').innerText = `Election: ${d.pres} & ${d.vp} (Watching)`;
             }
         });
@@ -220,43 +212,34 @@
             showPolicyChoice(true);
         });
 
-        // --- PUT THIS WITH YOUR OTHER socket.on LISTENERS ---
-
-socket.on('expelAnimation', d => {
-    const overlay = document.getElementById('overlay');
-    const content = document.getElementById('o-content');
-    
-    // Set the Title
-    document.getElementById('o-title').innerText = "STUDENT EXPELLED";
-    
-    // Find yourself in the player list to check if you are President
-    const me = players.find(p => p.name === myName);
-    const isPres = me && p.isPres; // This uses the logic from your getPlayerListWithStatus
-
-    // Update the UI content
-    content.innerHTML = `
-        <div style="text-align:center; padding: 20px;">
-            <h1 style="color:var(--iu-red); font-size: 3.5rem; margin-bottom: 10px;">${d.name}</h1>
-            <p style="font-size: 1.2rem; letter-spacing: 1px;">HAS BEEN REMOVED FROM PURDUE</p>
-            <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-            ${d.isBison ? `<h2 style="color:var(--p-gold);">THE BISON HAS FALLEN!</h2>` : ''}
+        socket.on('expelAnimation', d => {
+            const overlay = document.getElementById('overlay');
+            const content = document.getElementById('o-content');
+            document.getElementById('o-title').innerText = "STUDENT EXPELLED";
             
-            <div id="expel-footer">
-                ${p.isPres ? 
-                    `<button class="btn btn-gold" onclick="resumeGame()">Continue Term</button>` : 
-                    `<p style="color:#666; font-style: italic;">Waiting for President to acknowledge...</p>`}
-            </div>
-        </div>
-    `;
-    
-    overlay.style.display = 'flex';
-});
+            const me = players.find(p => p.id === socket.id);
+            const isPres = me && me.isPres;
 
-// Add this helper function anywhere in your script
-function resumeGame() {
-    document.getElementById('overlay').style.display = 'none';
-    socket.emit('resumeAfterExpel');
-}
+            content.innerHTML = `
+                <div style="text-align:center; padding: 20px;">
+                    <h1 style="color:var(--iu-red); font-size: 3.5rem; margin-bottom: 10px;">${d.name}</h1>
+                    <p style="font-size: 1.2rem; letter-spacing: 1px;">HAS BEEN REMOVED FROM PURDUE</p>
+                    <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
+                    ${d.isBison ? `<h2 style="color:var(--p-gold);">THE BISON HAS FALLEN!</h2>` : ''}
+                    <div id="expel-footer">
+                        ${isPres ? 
+                            `<button class="btn btn-gold" onclick="resumeGame()">Continue Term</button>` : 
+                            `<p style="color:#666; font-style: italic;">Waiting for President to acknowledge...</p>`}
+                    </div>
+                </div>
+            `;
+            overlay.style.display = 'flex';
+        });
+
+        function resumeGame() {
+            document.getElementById('overlay').style.display = 'none';
+            socket.emit('resumeAfterExpel');
+        }
 
         socket.on('vpEnactPhase', data => {
             currentHand = data.cards;
@@ -297,7 +280,16 @@ function resumeGame() {
         socket.on('gameStarted', () => document.getElementById('setup-screen').style.display = 'none');
         socket.on('investigateResult', d => alert(`${d.name}'s Party: ${d.party === 'Fascist' ? 'Fascist (Hoosier)' : 'Liberal (Boilermaker)'}`));
         socket.on('gameOver', m => { alert(m); location.reload(); });
-        socket.on('chatMessage', d => { const h = document.getElementById('chat-history'); h.innerHTML += `<div><b>${d.user}:</b> ${d.msg}</div>`; h.scrollTop = h.scrollHeight; });
+        
+        socket.on('chatMessage', d => { 
+            const h = document.getElementById('chat-history'); 
+            const msgEl = document.createElement('div');
+            if(d.color) msgEl.style.color = d.color;
+            msgEl.innerHTML = `<b>${d.user}:</b> ${d.msg}`;
+            h.appendChild(msgEl); 
+            h.scrollTop = h.scrollHeight; 
+        });
+
         function sendChat() { const i = document.getElementById('chat-msg'); if(i.value) { socket.emit('sendChat', i.value); i.value = ''; } }
         socket.on('errorMsg', m => alert(m));
     </script>
